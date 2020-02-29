@@ -1,22 +1,22 @@
 package database
 
 import (
+	"context"
 	"github.com/jackc/pgx/v4/pgxpool"
-    "context"
 )
 
 type Db struct {
-    pool *pgxpool.Pool
+	pool *pgxpool.Pool
 }
 
-func New(connstr string)  (*Db, error){
-    db := new(Db)
+func New(connstr string) (*Db, error) {
+	db := new(Db)
 	poolConfig, err := pgxpool.ParseConfig(connstr)
 	if err != nil {
-        return nil, err
+		return nil, err
 	}
-	poolConfig.MaxConns=6
-    db.pool, err = pgxpool.ConnectConfig(context.Background(), poolConfig)
+	poolConfig.MaxConns = 6
+	db.pool, err = pgxpool.ConnectConfig(context.Background(), poolConfig)
 	//defer db.pool.Close()
-    return db, err
+	return db, err
 }
