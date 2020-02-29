@@ -56,12 +56,18 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db){
                 if err != nil {
                     fmt.Fprintf(os.Stderr, "error: %v\n", err)
                     fmt.Fprintf(os.Stderr, "commandtag: %v\n", commandtag)
+                } else {
+			        re_msg := tgbotapi.NewMessage(int64(update.CallbackQuery.From.ID), "")
+			        re_msg.Text = fmt.Sprintf("Ranking %s Message %d has been submitted.", update.CallbackQuery.Data,update.CallbackQuery.Message.MessageID)
+			        bot.Send(re_msg)
                 }
 	        } else {
                 fmt.Fprintf(os.Stderr, "ranking value strconv error: %s %v\n", update.CallbackQuery.Data, err)
             }
-
 			bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID,update.CallbackQuery.Data))
+
+
+
             //edit := tgbotapi.EditMessageTextConfig{
 		    //    BaseEdit: tgbotapi.BaseEdit{
 			//        ChatID:    update.CallbackQuery.Message.Chat.ID,
@@ -81,7 +87,7 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db){
 			        msg.ReplyMarkup = rankingKeyboard
 			        bot.Send(msg)
                 default:
-                    if update.Message.From.ID == 20771632  {
+                    if update.Message.From.ID == 20771632 || update.Message.From.ID == 274538110 || update.Message.From.ID == 26851308 || update.Message.From.ID == 62859445 || update.Message.From.ID == 344334404 {
 			            msg := tgbotapi.NewMessage(CHANNEL_CHAT_ID, update.Message.Text)
 			            msg.ReplyMarkup = rankingKeyboard
                         sentmsg, err := bot.Send(msg)
