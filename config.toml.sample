@@ -1,0 +1,3 @@
+PG_URL = "postgres://localapp:PASSWORD@dbserver/brikobot?sslmode=disable"
+BOT_TOKEN = ""
+CHANNEL_CHAT_ID =
