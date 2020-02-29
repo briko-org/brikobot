@@ -16,6 +16,7 @@ var (
     PG_URL string
     BOT_TOKEN string
     CHANNEL_CHAT_ID int64
+	WHITELIST_ID_INT64 []int64
 )
 
 var rankingKeyboard = tgbotapi.NewInlineKeyboardMarkup(
@@ -38,6 +39,31 @@ func loadconf(){
     BOT_TOKEN = viper.GetString("BOT_TOKEN")
     CHANNEL_CHAT_ID = viper.GetInt64("CHANNEL_CHAT_ID")
 }
+
+func loadwhitelist(){
+	var WHITELIST_ID []string
+
+    viper.SetConfigName("whitelist")
+	viper.SetConfigType("yaml")
+    viper.AddConfigPath(filepath.Dir("."))
+
+	err := viper.ReadInConfig() 
+	if err != nil { 
+		panic(fmt.Errorf("Fatal error parsing config file: %s \n", err))
+	}
+
+	WHITELIST_ID = viper.GetStringSlice("whitelist")
+
+	for _ , value := range WHITELIST_ID {
+		temp_int64, err := strconv.ParseInt(value, 10, 64)
+		if err != nil	{
+			panic(fmt.Errorf("Fatal error parsing config file: %s \n", err))
+		}
+		WHITELIST_ID_INT64 = append(WHITELIST_ID_INT64 , temp_int64)	
+//		fmt.Println(WHITELIST_ID_INT64)
+	}	
+}
+
 
 
 func startservice(bot *tgbotapi.BotAPI, db *database.Db){
@@ -87,19 +113,21 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db){
 			        msg.ReplyMarkup = rankingKeyboard
 			        bot.Send(msg)
                 default:
-                    if update.Message.From.ID == 20771632 || update.Message.From.ID == 274538110 || update.Message.From.ID == 26851308 || update.Message.From.ID == 62859445 || update.Message.From.ID == 344334404 {
-			            msg := tgbotapi.NewMessage(CHANNEL_CHAT_ID, update.Message.Text)
-			            msg.ReplyMarkup = rankingKeyboard
-                        sentmsg, err := bot.Send(msg)
-                        if err != nil {
-                            fmt.Fprintf(os.Stderr, "error: %v\n", err)
-                        }
-                        commandtag, err := db.AddMessage(sentmsg.Chat.ID, sentmsg.MessageID, update.Message.From.ID, update.Message.Text)
-                        if err != nil {
-                            fmt.Fprintf(os.Stderr, "error: %v\n", err)
-                            fmt.Fprintf(os.Stderr, "commandtag: %v\n", commandtag)
-                        }
-                    }
+					for _, value := range WHITELIST_ID_INT64 {
+                    	if update.Message.From.ID == value {
+					    	msg := tgbotapi.NewMessage(CHANNEL_CHAT_ID, update.Message.Text)
+			            	msg.ReplyMarkup = rankingKeyboard
+                        	sentmsg, err := bot.Send(msg)
+                        	if err != nil {
+                            	fmt.Fprintf(os.Stderr, "error: %v\n", err)
+                        	}
+                        	commandtag, err := db.AddMessage(sentmsg.Chat.ID, sentmsg.MessageID, update.Message.From.ID, update.Message.Text)
+                        	if err != nil {
+                            	fmt.Fprintf(os.Stderr, "error: %v\n", err)
+                            	fmt.Fprintf(os.Stderr, "commandtag: %v\n", commandtag)
+                        	}
+                    	}
+					}
 			}
 
 		}
