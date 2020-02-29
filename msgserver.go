@@ -131,6 +131,7 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 
 func main() {
 	loadconf()
+    loadwhitelist()
 	db, err := database.New(PG_URL)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
