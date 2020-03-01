@@ -19,16 +19,43 @@ var (
 	WHITELIST_ID_INT []int
 )
 
-var rankingKeyboard = tgbotapi.NewInlineKeyboardMarkup(
-	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("1", "1"),
-		tgbotapi.NewInlineKeyboardButtonData("2", "2"),
-		tgbotapi.NewInlineKeyboardButtonData("3", "3"),
-		tgbotapi.NewInlineKeyboardButtonData("4", "4"),
-		tgbotapi.NewInlineKeyboardButtonData("5", "5"),
-		tgbotapi.NewInlineKeyboardButtonURL("improve", "https://briko.org"),
-	),
-)
+//var rankingKeyboard = tgbotapi.NewInlineKeyboardMarkup(
+//	tgbotapi.NewInlineKeyboardRow(
+//		tgbotapi.NewInlineKeyboardButtonData("1", "1"),
+//		tgbotapi.NewInlineKeyboardButtonData("2", "2"),
+//		tgbotapi.NewInlineKeyboardButtonData("3", "3"),
+//		tgbotapi.NewInlineKeyboardButtonData("4", "4"),
+//		tgbotapi.NewInlineKeyboardButtonData("5", "5"),
+//		tgbotapi.NewInlineKeyboardButtonURL("improve", "https://briko.org"),
+//	),
+//	tgbotapi.NewInlineKeyboardRow(
+//		tgbotapi.NewInlineKeyboardButtonData("1", "1"),
+//		tgbotapi.NewInlineKeyboardButtonData("2", "2"),
+//		tgbotapi.NewInlineKeyboardButtonData("3", "3"),
+//		tgbotapi.NewInlineKeyboardButtonData("4", "4"),
+//		tgbotapi.NewInlineKeyboardButtonData("5", "5"),
+//		tgbotapi.NewInlineKeyboardButtonURL("improve", "https://briko.org"),
+//	),
+//)
+
+func makeRankingKeyboard(lang_list []string) tgbotapi.InlineKeyboardMarkup{
+    var keyboard [][]tgbotapi.InlineKeyboardButton
+	for _, value := range lang_list{
+        var row []tgbotapi.InlineKeyboardButton
+        for i := 0; i < 5; i++ {
+            label := strconv.Itoa(i+1)
+            if i==0 {
+                label = value+" "+strconv.Itoa(i+1)
+            }
+            button := tgbotapi.NewInlineKeyboardButtonData(label, value+","+strconv.Itoa(i+1))
+	        row = append(row, button)
+        }
+        keyboard = append(keyboard, row)
+    }
+    return tgbotapi.InlineKeyboardMarkup{
+		InlineKeyboard: keyboard,
+	}
+}
 
 func loadconf() {
 	viper.SetConfigName("config")
@@ -72,6 +99,8 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 		os.Exit(1)
 	}
 	for update := range updates {
+        fmt.Println("===output update")
+        fmt.Println(update)
 		if update.CallbackQuery != nil {
 			user_ranking, err := strconv.Atoi(update.CallbackQuery.Data)
 			if err == nil { // error: ranking value must be a int
@@ -105,13 +134,19 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 			case "open":
 				msg := tgbotapi.NewMessage(CHANNEL_CHAT_ID, update.Message.Text)
 				msg.Text = "some test text"
-				msg.ReplyMarkup = rankingKeyboard
+				//msg.ReplyMarkup = rankingKeyboard
 				bot.Send(msg)
 			default:
 				for _, value := range WHITELIST_ID_INT {
 					if update.Message.From.ID == value {
 						msg := tgbotapi.NewMessage(CHANNEL_CHAT_ID, update.Message.Text)
-						msg.ReplyMarkup = rankingKeyboard
+                        lang_list := make([]string, 2) //TOFIX: the lang_list should be created dynamically from user's answer. And we will build a multi-langs ranking keyboard.
+                        lang_list[0]= "CN"
+                        lang_list[1]= "FR"
+                        newkeyboard := makeRankingKeyboard(lang_list)
+						//msg.ReplyMarkup = rankingKeyboard
+						msg.ReplyMarkup = newkeyboard
+
 						sentmsg, err := bot.Send(msg)
 						if err != nil {
 							fmt.Fprintf(os.Stderr, "error: %v\n", err)
