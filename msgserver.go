@@ -136,6 +136,12 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 				msg.Text = "some test text"
 				//msg.ReplyMarkup = rankingKeyboard
 				bot.Send(msg)
+			case "/new":
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "new session")
+				bot.Send(msg)
+			case "/help":
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "show help messages")
+				bot.Send(msg)
 			default:
 				for _, value := range WHITELIST_ID_INT {
 					if update.Message.From.ID == value {
