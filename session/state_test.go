@@ -4,30 +4,30 @@ import ("testing"
 "fmt"
 )
 
-func TestNewCommand(t *testing.T) {
+func TestNewState(t *testing.T) {
     var u_id int = 1001
     var chat_id int64 = 9000001
-    cmd := New(u_id, chat_id)
-    if cmd.U_id != u_id {
-        t.Errorf("new Command failed, expected %v , got %v", u_id, cmd.U_id)
+    stat := New(u_id, chat_id)
+    if stat.U_id != u_id {
+        t.Errorf("new State failed, expected %v , got %v", u_id, stat.U_id)
     } else {
-        t.Logf("new Command.U_id success");
+        t.Logf("new State .U_id success");
     }
-    if cmd.Chat_id != chat_id {
-        t.Errorf("new Command failed, expected %v , got %v", chat_id, cmd.Chat_id)
+    if stat.Chat_id != chat_id {
+        t.Errorf("new State failed, expected %v , got %v", chat_id, stat.Chat_id)
     } else {
-        t.Logf("new Command.Chat_id success");
+        t.Logf("new State.Chat_id success");
     }
 }
 
-func TestNextCommand(t *testing.T) {
+func TestNextState(t *testing.T) {
     var u_id int = 1001
     var chat_id int64 = 9000001
-    var command = "NEW"
+    var name= "NEW"
     var text= ""
-    cmd := New(u_id, chat_id)
-    cmd.Command = command
-    cmd.Text = text
+    stat:= New(u_id, chat_id)
+    stat.Name = name
+    stat.Text = text
 
 
     //var next_command = "INPUT"
@@ -37,7 +37,7 @@ func TestNextCommand(t *testing.T) {
     //next_cmd.Text = next_text
     //cmd.NextUpdate(next_cmd)
 
-    response := cmd.Response()
+    response := stat.Response()
     fmt.Printf("===============test, response %v\n",response)
     //t.Logf("====Command %v response: %v\n", cmd.Command, response );
 }
