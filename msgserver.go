@@ -5,6 +5,11 @@ import (
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/spf13/viper"
 	"github.com/virushuo/brikobot/database"
+	"github.com/virushuo/brikobot/session"
+    //"database/sql"
+    //"errors"
+    "strings"
+    "regexp"
 	"log"
 	"os"
 	"path/filepath"
@@ -19,38 +24,21 @@ var (
 	WHITELIST_ID_INT []int
 )
 
-//var rankingKeyboard = tgbotapi.NewInlineKeyboardMarkup(
-//	tgbotapi.NewInlineKeyboardRow(
-//		tgbotapi.NewInlineKeyboardButtonData("1", "1"),
-//		tgbotapi.NewInlineKeyboardButtonData("2", "2"),
-//		tgbotapi.NewInlineKeyboardButtonData("3", "3"),
-//		tgbotapi.NewInlineKeyboardButtonData("4", "4"),
-//		tgbotapi.NewInlineKeyboardButtonData("5", "5"),
-//		tgbotapi.NewInlineKeyboardButtonURL("improve", "https://briko.org"),
-//	),
-//	tgbotapi.NewInlineKeyboardRow(
-//		tgbotapi.NewInlineKeyboardButtonData("1", "1"),
-//		tgbotapi.NewInlineKeyboardButtonData("2", "2"),
-//		tgbotapi.NewInlineKeyboardButtonData("3", "3"),
-//		tgbotapi.NewInlineKeyboardButtonData("4", "4"),
-//		tgbotapi.NewInlineKeyboardButtonData("5", "5"),
-//		tgbotapi.NewInlineKeyboardButtonURL("improve", "https://briko.org"),
-//	),
-//)
-
 func makeRankingKeyboard(lang_list []string) tgbotapi.InlineKeyboardMarkup{
     var keyboard [][]tgbotapi.InlineKeyboardButton
-	for _, value := range lang_list{
-        var row []tgbotapi.InlineKeyboardButton
-        for i := 0; i < 5; i++ {
-            label := strconv.Itoa(i+1)
-            if i==0 {
-                label = value+" "+strconv.Itoa(i+1)
+	for idx, value := range lang_list{
+        if idx >0 {
+            var row []tgbotapi.InlineKeyboardButton
+            for i := 0; i < 5; i++ {
+                label := strconv.Itoa(i+1)
+                if i==0 {
+                    label = value+" "+strconv.Itoa(i+1)
+                }
+                button := tgbotapi.NewInlineKeyboardButtonData(label, value+","+strconv.Itoa(i+1))
+	            row = append(row, button)
             }
-            button := tgbotapi.NewInlineKeyboardButtonData(label, value+","+strconv.Itoa(i+1))
-	        row = append(row, button)
+            keyboard = append(keyboard, row)
         }
-        keyboard = append(keyboard, row)
     }
     return tgbotapi.InlineKeyboardMarkup{
 		InlineKeyboard: keyboard,
@@ -90,6 +78,26 @@ func loadwhitelist() {
 	}
 }
 
+func publishToChat(from_id int, chat_id int64, text string, lang_list []string,bot *tgbotapi.BotAPI, db *database.Db) {
+    for _, value := range WHITELIST_ID_INT {
+        if  from_id == value {
+            msg := tgbotapi.NewMessage(chat_id, text)
+            newkeyboard := makeRankingKeyboard(lang_list)
+            msg.ReplyMarkup = newkeyboard
+            sentmsg, err := bot.Send(msg)
+            if err != nil {
+                fmt.Fprintf(os.Stderr, "error: %v\n", err)
+            }
+            fmt.Printf("====addMessage%v %v %v %v\n",sentmsg.Chat.ID, sentmsg.MessageID, from_id, text)
+            commandtag, err := db.AddMessage(sentmsg.Chat.ID, sentmsg.MessageID, from_id, text)
+            if err != nil {
+                fmt.Fprintf(os.Stderr, "error: %v\n", err)
+                fmt.Fprintf(os.Stderr, "commandtag: %v\n", commandtag)
+            }
+        }
+    }
+}
+
 func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
@@ -102,70 +110,122 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
         fmt.Println("===output update")
         fmt.Println(update)
 		if update.CallbackQuery != nil {
-			user_ranking, err := strconv.Atoi(update.CallbackQuery.Data)
-			if err == nil { // error: ranking value must be a int
-				commandtag, err := db.AddRanking(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID, update.CallbackQuery.From.ID, user_ranking)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "error: %v\n", err)
-					fmt.Fprintf(os.Stderr, "commandtag: %v\n", commandtag)
-				} else {
-					re_msg := tgbotapi.NewMessage(int64(update.CallbackQuery.From.ID), "")
-					re_msg.Text = fmt.Sprintf("Ranking %s Message %d has been submitted.", update.CallbackQuery.Data, update.CallbackQuery.Message.MessageID)
-					bot.Send(re_msg)
-				}
-			} else {
-				fmt.Fprintf(os.Stderr, "ranking value strconv error: %s %v\n", update.CallbackQuery.Data, err)
-			}
-			bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
-
-			//edit := tgbotapi.EditMessageTextConfig{
-			//    BaseEdit: tgbotapi.BaseEdit{
-			//        ChatID:    update.CallbackQuery.Message.Chat.ID,
-			//        MessageID: update.CallbackQuery.Message.MessageID,
-			//    },
-			//    Text:  fmt.Sprintf("%s\n(%s)",update.CallbackQuery.Message.Text, update.CallbackQuery.Data) ,
-			//}
-			//_, err = bot.Send(edit)
+            callbackdata := strings.Split(update.CallbackQuery.Data, ",")
+            if len(callbackdata)==2 {
+                lang := callbackdata[0]
+			    user_ranking, err := strconv.Atoi(callbackdata[1])
+			    if err == nil { // error: ranking value must be a int
+			    	commandtag, err := db.AddRanking(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID, update.CallbackQuery.From.ID, lang, user_ranking)
+			    	if err != nil {
+			    		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			    		fmt.Fprintf(os.Stderr, "commandtag: %v\n", commandtag)
+			    	} else {
+			    		re_msg := tgbotapi.NewMessage(int64(update.CallbackQuery.From.ID), "")
+			    		re_msg.Text = fmt.Sprintf("Ranking %s Message %d has been submitted.", update.CallbackQuery.Data, update.CallbackQuery.Message.MessageID)
+			    		bot.Send(re_msg)
+			    	}
+			    } else {
+			    	fmt.Fprintf(os.Stderr, "ranking value strconv error: %s %v\n", update.CallbackQuery.Data, err)
+			    }
+			    bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
+            }
 		}
 		if update.Message != nil {
-			//update.Message.Chat.ID
 
-			switch update.Message.Text {
-			case "open":
-				msg := tgbotapi.NewMessage(CHANNEL_CHAT_ID, update.Message.Text)
-				msg.Text = "some test text"
-				//msg.ReplyMarkup = rankingKeyboard
-				bot.Send(msg)
-			case "/new":
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "new session")
-				bot.Send(msg)
-			case "/help":
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "show help messages")
+            chat_id := update.Message.Chat.ID
+            u_id := update.Message.From.ID
+            n,t,err := db.GetChatState(chat_id, u_id)
+            msgtext := "default text"
+
+			switch []byte(update.Message.Text)[0] {
+			case 47: //start with "/"
+                if update.Message.Text == "/new" {
+                    stat:= session.New(u_id, chat_id)
+                    stat.Name ="NONE"
+                    stat.Text = ""
+
+                    stat_next:= session.New(u_id, chat_id)
+                    stat_next.Name = "NEW"
+                    stat_next.Text = t
+                    r, str := stat.NextUpdate(stat_next, db)
+                    if r == true{
+                        msgtext = str
+                    }else {
+                        msgtext = "error"
+                    }
+                } else if update.Message.Text == "/show" {
+                    if err!=nil && err.Error() == "no rows in result set" {
+                        msgtext = "Current state is nil, send /help for help, send /new to start"
+                    } else if err!=nil {
+                        msgtext = "Error: " + err.Error()
+                    } else {
+                        msgtext = fmt.Sprintf("Show current state:\nState: %s\nText: %s",n,t)
+                    }
+                } else {
+                    if err!=nil && err.Error() == "no rows in result set" {
+                        stat:= session.New(u_id, chat_id)
+                        stat.Name = "NONE"
+                        stat.Text = ""
+                        msgtext = stat.Response(session.New(u_id, chat_id))
+                    }else if err == nil {
+                        stat:= session.New(u_id, chat_id)
+                        stat.Name = n
+                        stat.Text = t
+
+                        stat_next:= session.New(u_id, chat_id)
+                        idx := strings.Index(update.Message.Text, " ")
+                        if idx > 1 {
+                            name := update.Message.Text[1:idx]
+                            text := update.Message.Text[idx+1:]
+                            stat_next.Name = strings.ToUpper(name)
+                            stat_next.Text = text
+                        }else{
+                            stat_next.Name = strings.ToUpper(update.Message.Text[1:])
+                            stat_next.Text = ""
+                        }
+
+                        r, str := stat.NextUpdate(stat_next, db)
+
+                        if stat_next.Name == "PUBLISH" && r == true {
+                            idx := strings.Index(stat.Text, ":")
+                            lang_list_str := stat.Text[:idx]
+                            to_publish_text := stat.Text[idx+1:]
+                            regex := *regexp.MustCompile(`\[([A-Z]{2})\]`)
+                            res := regex.FindAllStringSubmatch(lang_list_str, -1)
+                            lang_list := make([]string, len(res))
+                            if len(res) > 1 {
+                                for i, value := range res {
+                                    if len(value) == 2 {
+                                        lang_list[i] = value[1]
+                                    }
+                                }
+                            } else {
+                                fmt.Println("no language tag")
+                            }
+
+                            publishToChat(update.Message.From.ID, CHANNEL_CHAT_ID, to_publish_text, lang_list, bot, db)
+                        }
+                        msgtext = str
+                        fmt.Println("DEBUG: stat")
+                        fmt.Println(stat)
+                        fmt.Println(stat_next)
+                        fmt.Println(r)
+                        fmt.Println(str)
+                    }
+                }
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtext )
 				bot.Send(msg)
 			default:
-				for _, value := range WHITELIST_ID_INT {
-					if update.Message.From.ID == value {
-						msg := tgbotapi.NewMessage(CHANNEL_CHAT_ID, update.Message.Text)
-                        lang_list := make([]string, 2) //TOFIX: the lang_list should be created dynamically from user's answer. And we will build a multi-langs ranking keyboard.
-                        lang_list[0]= "CN"
-                        lang_list[1]= "FR"
-                        newkeyboard := makeRankingKeyboard(lang_list)
-						//msg.ReplyMarkup = rankingKeyboard
-						msg.ReplyMarkup = newkeyboard
-
-						sentmsg, err := bot.Send(msg)
-						if err != nil {
-							fmt.Fprintf(os.Stderr, "error: %v\n", err)
-						}
-						commandtag, err := db.AddMessage(sentmsg.Chat.ID, sentmsg.MessageID, update.Message.From.ID, update.Message.Text)
-						if err != nil {
-							fmt.Fprintf(os.Stderr, "error: %v\n", err)
-							fmt.Fprintf(os.Stderr, "commandtag: %v\n", commandtag)
-						}
-					}
-				}
+                if err!=nil && err.Error() == "no rows in result set" {
+                    msgtext = "Current state is nil, send /help for help, send /new to start"
+                } else if err!=nil {
+                    msgtext = "Error: " + err.Error()
+                } else {
+                    msgtext = fmt.Sprintf("Show current state:\nState: %s\nText: %s",n,t)
+                }
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtext )
+				bot.Send(msg)
 			}
-
 		}
 	}
 }
@@ -178,6 +238,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
+
 	bot, err := tgbotapi.NewBotAPI(BOT_TOKEN)
 	if err != nil {
 		log.Panic(err)

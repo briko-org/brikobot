@@ -34,6 +34,7 @@ CREATE TABLE ranking (
   chat_id bigint not null,
   message_id bigint not null,
   u_id bigint not null,
+  lang char(2) not null,
   ranking int not null,
   created_at TIMESTAMP DEFAULT now()
 );
@@ -46,7 +47,7 @@ CREATE TABLE botstate (
   text TEXT
 );
 
-CREATE UNIQUE INDEX ranking_norepeat_idx ON ranking (chat_id, u_id, message_id);
+CREATE UNIQUE INDEX ranking_norepeat_idx ON ranking (chat_id, u_id, message_id, lang);
 
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO localapp;
 GRANT ALL PRIVILEGES ON SCHEMA shard_1 TO localapp;

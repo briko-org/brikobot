@@ -17,3 +17,18 @@ func (db *Db) SetChatState(chat_id int64, u_id int, state string, text string) (
 	return r, err
 }
 
+
+func (db *Db) GetChatState(chat_id int64, u_id int) (string, string, error) {
+	var state,text string
+    keystr := fmt.Sprintf("%d_%d", chat_id, u_id );
+    h := md5.New()
+    io.WriteString(h, keystr)
+	key := fmt.Sprintf("%x", h.Sum(nil))
+
+    err := db.pool.QueryRow(context.Background(), "SELECT state, text FROM botstate WHERE chatkey=$1 ", key).Scan(&state, &text)
+	if err != nil {
+        return "", "", err
+	}
+    return state, text, nil
+}
+
