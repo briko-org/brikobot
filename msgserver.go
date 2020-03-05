@@ -99,6 +99,10 @@ func publishToChat(from_id int, chat_id int64, text string, lang_list []string,b
 }
 
 func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
+    //var ch chan string = make(chan string)
+    var ch chan session.State = make(chan session.State)
+    go readTranslateChannel(ch, bot, db)
+
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 	updates, err := bot.GetUpdatesChan(u)
@@ -185,6 +189,10 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
                         }
 
                         r, str := stat.NextUpdate(stat_next, db)
+                        if stat_next.Name == "INPUT" && r == true {
+                            fmt.Println("=========ok waiting for translate" + stat_next.Text)
+                            go stat_next.RequestBriko(ch)
+                        }
 
                         if stat_next.Name == "PUBLISH" && r == true {
                             idx := strings.Index(stat.Text, ":")
@@ -229,6 +237,24 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 		}
 	}
 }
+
+func readTranslateChannel(c chan session.State, bot *tgbotapi.BotAPI , db *database.Db) {
+  for {
+    stat := <- c
+    fmt.Println(stat.Text)
+
+    commandtag, err := db.SetChatState(stat.Chat_id, stat.U_id, stat.Name, stat.Text)
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "error: %v\n", err)
+    }else{
+        fmt.Fprintf(os.Stderr, "commandtag: %v\n", commandtag)
+	    msg := tgbotapi.NewMessage(stat.Chat_id , stat.Text)
+        //sentmsg, err := bot.Send(msg)
+        bot.Send(msg)
+    }
+  }
+}
+
 
 func main() {
 	loadconf()

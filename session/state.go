@@ -1,6 +1,9 @@
 package session
 import ("fmt"
     "strings"
+    "io/ioutil"
+    "net/http"
+    "net/url"
 	"github.com/virushuo/brikobot/database"
 )
 
@@ -101,4 +104,21 @@ func (stat *State) NextState() []string{
 	        state_list = append(state_list, "NEW")
     }
     return state_list
+}
+
+
+func (stat *State) RequestBriko(ch chan State) {
+
+  Url, err := url.Parse("http://localhost:8080/t")
+  if err != nil {
+      panic("error url")
+  }
+  parameters := url.Values{}
+  parameters.Add("input", stat.Text)
+  Url.RawQuery = parameters.Encode()
+
+  resp, _ := http.Get(Url.String())
+  body, _ := ioutil.ReadAll(resp.Body)
+
+  ch <- State{"TRANSLATE", string(body), stat.U_id, stat.Chat_id}
 }
