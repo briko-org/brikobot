@@ -1,9 +1,10 @@
 package session
 import ("fmt"
+    "bytes"
     "strings"
-    "io/ioutil"
+    "regexp"
     "net/http"
-    "net/url"
+	"encoding/json"
 	"github.com/virushuo/brikobot/database"
 )
 
@@ -21,6 +22,23 @@ func New(u_id int, chat_id int64) *State{
     stat.Name = "NONE"
     stat.Text = ""
     return stat
+}
+
+
+type requestMsg struct {
+    MsgType string `json:"msgType"`
+    MsgID  string `json:"msgID"`
+    SourceLang string `json:"sourceLang"`
+    RequestLang []string `json:"requestLang"`
+    SourceContent string `json:"sourceContent"`
+}
+
+type responseMsg struct {
+    MsgType string `json:"msgType"`
+    MsgID  string `json:"msgID"`
+    MsgFlag string `json:"msgFlag"`
+    MsgIDRespondTo string `json:"msgIDRespondTo"`
+    TranslationResults map[string]string `json:"translationResults"`
 }
 
 func makeMenu(state_list []string) string{
@@ -108,17 +126,61 @@ func (stat *State) NextState() []string{
 
 
 func (stat *State) RequestBriko(ch chan State) {
+//'{"msgType": "Translation", "msgID" : "BOT00012234", "sourceLang" : "EN", "requestLang" : ["JA", "ZH"], "sourceContent" : "I have an apple."}'
+	//Name string
+    //Text string
+	//U_id int
+    //Chat_id int64
 
-  Url, err := url.Parse("http://localhost:8080/t")
-  if err != nil {
-      panic("error url")
-  }
-  parameters := url.Values{}
-  parameters.Add("input", stat.Text)
-  Url.RawQuery = parameters.Encode()
 
-  resp, _ := http.Get(Url.String())
-  body, _ := ioutil.ReadAll(resp.Body)
 
-  ch <- State{"TRANSLATE", string(body), stat.U_id, stat.Chat_id}
+    lang_list :=  [3]string{"EN","JA","ZH"}
+
+    data := &requestMsg{
+    MsgType :  "Translation",
+    MsgID : "BOT00012234",
+    SourceLang : "EN",
+    }
+
+    regex := *regexp.MustCompile(`\[([A-Z]{2})\]`)
+    res := regex.FindStringSubmatch(stat.Text)
+    if len(res) > 1 {
+        data.SourceLang = res[1]
+        data.SourceContent = string(stat.Text[4:])
+        requestLang := []string{}
+        for _, value := range lang_list {
+            if value != data.SourceLang {
+            requestLang = append(requestLang, value)
+            }
+        }
+        data.RequestLang = requestLang
+        output, _ := json.Marshal(data)
+        resp, _ := http.Post("http://localhost:8080/t","application/json", bytes.NewBuffer(output))
+
+        d := json.NewDecoder(resp.Body)
+        rmsg := &responseMsg{}
+        err := d.Decode(rmsg)
+        if err != nil {
+            fmt.Println(err) //TODO: send the error msg to bot
+        } else {
+            if rmsg.MsgFlag == "success" {
+                lang_content := ""
+                lang_list_str := fmt.Sprintf("[%s]", data.SourceLang)
+                translation  := rmsg.TranslationResults
+                for key , value := range translation {
+                    if len(lang_content)>0{
+                        lang_content = lang_content + fmt.Sprintf("\n[%s]%s", key, value);
+                    } else{
+                        lang_content = lang_content + fmt.Sprintf("[%s]%s", key, value);
+                    }
+                    lang_list_str =  lang_list_str + fmt.Sprintf("[%s]", key);
+                }
+                ch <- State{"TRANSLATE", fmt.Sprintf("%s:%s", lang_list_str, lang_content), stat.U_id, stat.Chat_id}
+            } else {
+                fmt.Println(rmsg.MsgFlag) //TODO: send the error msg to bot
+            }
+        }
+    } else {
+        fmt.Println("no language tag")
+    }
 }
