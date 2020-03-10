@@ -22,6 +22,7 @@ var (
 	BOT_TOKEN        string
 	CHANNEL_CHAT_ID  int64
 	WHITELIST_ID_INT []int
+    MIN_INPUT_LENGTH int
 )
 
 func makeRankingKeyboard(lang_list []string) tgbotapi.InlineKeyboardMarkup {
@@ -53,6 +54,7 @@ func loadconf() {
 	PG_URL = viper.GetString("PG_URL")
 	BOT_TOKEN = viper.GetString("BOT_TOKEN")
 	CHANNEL_CHAT_ID = viper.GetInt64("CHANNEL_CHAT_ID")
+	MIN_INPUT_LENGTH = viper.GetInt("MIN_INPUT_LENGTH")
 }
 
 func loadwhitelist() {
@@ -88,7 +90,6 @@ func publishToChat(from_id int, chat_id int64, text string, lang_list []string, 
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			}
-			fmt.Printf("====addMessage%v %v %v %v\n", sentmsg.Chat.ID, sentmsg.MessageID, from_id, text)
 			commandtag, err := db.AddMessage(sentmsg.Chat.ID, sentmsg.MessageID, from_id, text)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -96,6 +97,23 @@ func publishToChat(from_id int, chat_id int64, text string, lang_list []string, 
 			}
 		}
 	}
+}
+
+func verifyCommandMsg(message string) (bool,string){
+    if strings.Index(message, "/input") == 0 {
+        inputstr := strings.TrimLeft(message[6:], " ")
+        if len(inputstr) > 4 + MIN_INPUT_LENGTH {
+            match, _:= regexp.Match(`\[([A-Z]{2})\]`, []byte(strings.ToUpper(inputstr[:4])))
+            if match == true{
+                return true,""
+            }else {
+                return false, "no language tag. for example: /input [EN]I have an apple."
+            }
+        } else {
+            return false, fmt.Sprintf("min text length is %d", 4 + MIN_INPUT_LENGTH)
+        }
+    }
+    return true, ""
 }
 
 func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
@@ -111,8 +129,6 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 		os.Exit(1)
 	}
 	for update := range updates {
-		fmt.Println("===output update")
-		fmt.Println(update)
 		if update.CallbackQuery != nil {
 			callbackdata := strings.Split(update.CallbackQuery.Data, ",")
 			if len(callbackdata) == 2 {
@@ -166,6 +182,12 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 						msgtext = fmt.Sprintf("Show current state:\nState: %s\nText: %s", n, t)
 					}
 				} else {
+                    verifyresult, verifymsg := verifyCommandMsg(update.Message.Text)
+                    if verifyresult == false {
+				        msg := tgbotapi.NewMessage(update.Message.Chat.ID, verifymsg)
+				        bot.Send(msg)
+                        break
+                    }
 					if err != nil && err.Error() == "no rows in result set" {
 						stat := session.New(u_id, chat_id)
 						stat.Name = "NONE"
@@ -190,7 +212,6 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 
 						r, str := stat.NextUpdate(stat_next, db)
 						if stat_next.Name == "INPUT" && r == true {
-							fmt.Println("=========ok waiting for translate" + stat_next.Text)
 							go stat_next.RequestBriko(ch)
 						}
 

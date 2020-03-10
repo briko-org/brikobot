@@ -139,10 +139,10 @@ func (stat *State) RequestBriko(ch chan State) {
 		SourceLang: "EN",
 	}
 
-	regex := *regexp.MustCompile(`\[([A-Z]{2})\]`)
+	regex := *regexp.MustCompile(`\[([A-Za-z]{2})\]`)
 	res := regex.FindStringSubmatch(stat.Text)
 	if len(res) > 1 {
-		data.SourceLang = res[1]
+		data.SourceLang = strings.ToUpper(res[1])
 		data.SourceContent = string(stat.Text[4:])
 		requestLang := []string{}
 		for _, value := range lang_list {
