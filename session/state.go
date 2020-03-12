@@ -126,15 +126,17 @@ func (stat *State) NextState() []string {
 	return state_list
 }
 
-func (stat *State) RequestBriko(APIURL string, msgId int, ch chan State) {
+func (stat *State) RequestBriko(APIURL string, lang_list []string, msgId int, ch chan State) {
 	//'{"msgType": "Translation", "msgID" : "BOT00012234", "sourceLang" : "EN", "requestLang" : ["JA", "ZH"], "sourceContent" : "I have an apple."}'
 	//Name string
 	//Text string
 	//U_id int
 	//Chat_id int64
 
-	lang_list := [4]string{"en", "jp", "fr", "zh"}
+	//lang_list := [4]string{"en", "jp", "fr", "zh"}
 
+    fmt.Println("===lang_list: request")
+    fmt.Println(lang_list)
 	data := &requestMsg{
 		MsgType:    "Translation",
 		MsgID:      strconv.Itoa(msgId),
@@ -162,6 +164,8 @@ func (stat *State) RequestBriko(APIURL string, msgId int, ch chan State) {
             //TODO: send the error msg to bot
         }
         bodyString := string(bodyBytes)
+        fmt.Println("=======bodyString")
+        fmt.Println(bodyString)
         d := json.NewDecoder(strings.NewReader(bodyString))
 		rmsg := &responseMsg{}
 		err := d.Decode(rmsg)

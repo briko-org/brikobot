@@ -24,6 +24,7 @@ var (
 	WHITELIST_ID_INT []int
     MIN_INPUT_LENGTH int
     BRIKO_API   string
+    REQUEST_LANG_LIST []string
 )
 
 func makeRankingKeyboard(lang_list []string) tgbotapi.InlineKeyboardMarkup {
@@ -33,7 +34,7 @@ func makeRankingKeyboard(lang_list []string) tgbotapi.InlineKeyboardMarkup {
 			var row []tgbotapi.InlineKeyboardButton
 			for i := 0; i < 5; i++ {
 				label := strconv.Itoa(i + 1)
-				if i == 0 {
+				if i == 0  { //&& len(lang_list) > 2
 					label = value + " " + strconv.Itoa(i+1)
 				}
 				button := tgbotapi.NewInlineKeyboardButtonData(label, value+","+strconv.Itoa(i+1))
@@ -57,7 +58,7 @@ func loadconf() {
 	CHANNEL_CHAT_ID = viper.GetInt64("CHANNEL_CHAT_ID")
 	MIN_INPUT_LENGTH = viper.GetInt("MIN_INPUT_LENGTH")
     BRIKO_API = viper.GetString("BRIKO_API")
-
+	REQUEST_LANG_LIST = viper.GetStringSlice("REQUEST_LANG_LIST")
 }
 
 func loadwhitelist() {
@@ -225,7 +226,7 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 
 						r, str := stat.NextUpdate(stat_next, db)
 						if stat_next.Name == "INPUT" && r == true {
-							go stat_next.RequestBriko(BRIKO_API, update.Message.MessageID, ch)
+							go stat_next.RequestBriko(BRIKO_API, REQUEST_LANG_LIST , update.Message.MessageID, ch)
 						}
 
 						if stat_next.Name == "PUBLISH" && r == true {
