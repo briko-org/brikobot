@@ -3,7 +3,9 @@ package session
 import (
 	"bytes"
 	"encoding/json"
+	"strconv"
 	"fmt"
+	"io/ioutil"
 	"github.com/virushuo/brikobot/database"
 	"net/http"
 	"regexp"
@@ -35,10 +37,10 @@ type requestMsg struct {
 }
 
 type responseMsg struct {
-	MsgType            string            `json:"msgType"`
-	MsgID              string            `json:"msgID"`
 	MsgFlag            string            `json:"msgFlag"`
+	MsgID              string            `json:"msgID"`
 	MsgIDRespondTo     string            `json:"msgIDRespondTo"`
+	MsgType            string            `json:"msgType"`
 	TranslationResults map[string]string `json:"translationResults"`
 }
 
@@ -124,25 +126,25 @@ func (stat *State) NextState() []string {
 	return state_list
 }
 
-func (stat *State) RequestBriko(ch chan State) {
+func (stat *State) RequestBriko(APIURL string, msgId int, ch chan State) {
 	//'{"msgType": "Translation", "msgID" : "BOT00012234", "sourceLang" : "EN", "requestLang" : ["JA", "ZH"], "sourceContent" : "I have an apple."}'
 	//Name string
 	//Text string
 	//U_id int
 	//Chat_id int64
 
-	lang_list := [3]string{"EN", "JA", "ZH"}
+	lang_list := [4]string{"en", "jp", "fr", "zh"}
 
 	data := &requestMsg{
 		MsgType:    "Translation",
-		MsgID:      "BOT00012234",
-		SourceLang: "EN",
+		MsgID:      strconv.Itoa(msgId),
+		SourceLang: "en",
 	}
 
 	regex := *regexp.MustCompile(`\[([A-Za-z]{2})\]`)
 	res := regex.FindStringSubmatch(stat.Text)
 	if len(res) > 1 {
-		data.SourceLang = strings.ToUpper(res[1])
+		data.SourceLang = strings.ToLower(res[1])
 		data.SourceContent = string(stat.Text[4:])
 		requestLang := []string{}
 		for _, value := range lang_list {
@@ -152,24 +154,27 @@ func (stat *State) RequestBriko(ch chan State) {
 		}
 		data.RequestLang = requestLang
 		output, _ := json.Marshal(data)
-		resp, _ := http.Post("http://localhost:8080/t", "application/json", bytes.NewBuffer(output))
+		resp, _ := http.Post(APIURL, "application/json", bytes.NewBuffer(output))
 
-		d := json.NewDecoder(resp.Body)
+        bodyBytes, err1 := ioutil.ReadAll(resp.Body)
+        if err1 != nil {
+            fmt.Println(err1)
+            //TODO: send the error msg to bot
+        }
+        bodyString := string(bodyBytes)
+        d := json.NewDecoder(strings.NewReader(bodyString))
 		rmsg := &responseMsg{}
 		err := d.Decode(rmsg)
 		if err != nil {
+            fmt.Println("===rmsg err");
 			fmt.Println(err) //TODO: send the error msg to bot
 		} else {
 			if rmsg.MsgFlag == "success" {
-				lang_content := ""
+                lang_content := fmt.Sprintf("[%s] %s", data.SourceLang, data.SourceContent)
 				lang_list_str := fmt.Sprintf("[%s]", data.SourceLang)
 				translation := rmsg.TranslationResults
 				for key, value := range translation {
-					if len(lang_content) > 0 {
-						lang_content = lang_content + fmt.Sprintf("\n[%s]%s", key, value)
-					} else {
-						lang_content = lang_content + fmt.Sprintf("[%s]%s", key, value)
-					}
+					lang_content = lang_content + fmt.Sprintf("\n\n[%s] %s", key, value)
 					lang_list_str = lang_list_str + fmt.Sprintf("[%s]", key)
 				}
 				ch <- State{"TRANSLATE", fmt.Sprintf("%s:%s", lang_list_str, lang_content), stat.U_id, stat.Chat_id}

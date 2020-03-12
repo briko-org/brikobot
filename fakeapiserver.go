@@ -54,7 +54,6 @@ func TranslateServer(w http.ResponseWriter, r *http.Request) {
 	case "GET":
 		fmt.Fprintf(w, "TranslateServer")
 	case "POST":
-		// Decode the JSON in the body and overwrite 'tom' with it
 		d := json.NewDecoder(r.Body)
 		m := &requestMsg{}
 		err := d.Decode(m)

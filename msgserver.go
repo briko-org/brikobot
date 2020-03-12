@@ -23,6 +23,7 @@ var (
 	CHANNEL_CHAT_ID  int64
 	WHITELIST_ID_INT []int
     MIN_INPUT_LENGTH int
+    BRIKO_API   string
 )
 
 func makeRankingKeyboard(lang_list []string) tgbotapi.InlineKeyboardMarkup {
@@ -55,6 +56,8 @@ func loadconf() {
 	BOT_TOKEN = viper.GetString("BOT_TOKEN")
 	CHANNEL_CHAT_ID = viper.GetInt64("CHANNEL_CHAT_ID")
 	MIN_INPUT_LENGTH = viper.GetInt("MIN_INPUT_LENGTH")
+    BRIKO_API = viper.GetString("BRIKO_API")
+
 }
 
 func loadwhitelist() {
@@ -83,7 +86,17 @@ func loadwhitelist() {
 func publishToChat(from_id int, chat_id int64, text string, lang_list []string, bot *tgbotapi.BotAPI, db *database.Db) {
 	for _, value := range WHITELIST_ID_INT {
 		if from_id == value {
-			msg := tgbotapi.NewMessage(chat_id, text)
+			//msg := tgbotapi.NewMessage(chat_id, text)
+			msg := tgbotapi.MessageConfig{
+				BaseChat: tgbotapi.BaseChat{
+					ChatID: chat_id,
+					ReplyToMessageID: 0,
+				},
+				Text: text,
+				//ParseMode: "Markdown",
+				DisableWebPagePreview: false,
+			}
+
 			newkeyboard := makeRankingKeyboard(lang_list)
 			msg.ReplyMarkup = newkeyboard
 			sentmsg, err := bot.Send(msg)
@@ -212,14 +225,14 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 
 						r, str := stat.NextUpdate(stat_next, db)
 						if stat_next.Name == "INPUT" && r == true {
-							go stat_next.RequestBriko(ch)
+							go stat_next.RequestBriko(BRIKO_API, update.Message.MessageID, ch)
 						}
 
 						if stat_next.Name == "PUBLISH" && r == true {
 							idx := strings.Index(stat.Text, ":")
 							lang_list_str := stat.Text[:idx]
 							to_publish_text := stat.Text[idx+1:]
-							regex := *regexp.MustCompile(`\[([A-Z]{2})\]`)
+							regex := *regexp.MustCompile(`\[([A-Za-z]{2})\]`)
 							res := regex.FindAllStringSubmatch(lang_list_str, -1)
 							lang_list := make([]string, len(res))
 							if len(res) > 1 {
@@ -233,18 +246,23 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 							}
 
 							publishToChat(update.Message.From.ID, CHANNEL_CHAT_ID, to_publish_text, lang_list, bot, db)
+                            break
 						}
 						msgtext = str
-						fmt.Println("DEBUG: stat")
-						fmt.Println(stat)
-						fmt.Println(stat_next)
-						fmt.Println(r)
-						fmt.Println(str)
+						//fmt.Println("DEBUG: stat")
+						//fmt.Println(stat)
+						//fmt.Println(stat_next)
+						//fmt.Println(r)
+						//fmt.Println(str)
 					}
 				}
+                if len(msgtext)==0 {
+                    msgtext = "unknown command"
+                }
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
 				bot.Send(msg)
 			default:
+                msgtext = "unknown command"
 				if err != nil && err.Error() == "no rows in result set" {
 					msgtext = "Current state is nil, send /help for help, send /new to start"
 				} else if err != nil {
@@ -262,8 +280,6 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 func readTranslateChannel(c chan session.State, bot *tgbotapi.BotAPI, db *database.Db) {
 	for {
 		stat := <-c
-		fmt.Println(stat.Text)
-
 		commandtag, err := db.SetChatState(stat.Chat_id, stat.U_id, stat.Name, stat.Text)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
