@@ -116,6 +116,7 @@ func (stat *State) NextState() []string {
 		state_list = append(state_list, "UPDATE")
 		state_list = append(state_list, "PUBLISH")
 	case "UPDATE":
+		state_list = append(state_list, "UPDATE")
 		state_list = append(state_list, "PUBLISH")
 	case "IMPROVE":
 		state_list = append(state_list, "SUBMIT")
@@ -164,8 +165,6 @@ func (stat *State) RequestBriko(APIURL string, lang_list []string, msgId int, ch
             //TODO: send the error msg to bot
         }
         bodyString := string(bodyBytes)
-        fmt.Println("=======bodyString")
-        fmt.Println(bodyString)
         d := json.NewDecoder(strings.NewReader(bodyString))
 		rmsg := &responseMsg{}
 		err := d.Decode(rmsg)
@@ -189,4 +188,59 @@ func (stat *State) RequestBriko(APIURL string, lang_list []string, msgId int, ch
 	} else {
 		fmt.Println("no language tag")
 	}
+}
+
+
+func (stat *State) MergeUpdateState(next_stat *State) (bool, string){
+    if next_stat.Name == "UPDATE" && (stat.Name == "TRANSLATE" || stat.Name == "UPDATE") {
+
+        idx := strings.Index(stat.Text, ":")
+        lang_list_str := stat.Text[:idx]
+        to_publish_text := stat.Text[idx+1:]
+        regex := *regexp.MustCompile(`\[([A-Za-z]{2})\]`)
+        res := regex.FindAllStringSubmatch(lang_list_str, -1)
+        lang_list := make([]string, len(res))
+        lang_text_pos := make([]int, len(res))
+        if len(res) > 1 {
+            for i, value := range res {
+                if len(value) == 2 {
+                    lang_list[i] = value[0]
+					pos := strings.Index(to_publish_text, value[0])
+					lang_text_pos[i] = pos
+
+                }
+            }
+        } else {
+            fmt.Println("no language tag")
+        }
+        input_lang_tag := strings.TrimSpace(next_stat.Text)[:4]
+
+        output_text :=""
+	    for i, pos := range lang_text_pos {
+            split_text := ""
+            if i+1 == len(lang_text_pos){
+                split_text = to_publish_text[pos:]
+            } else {
+                split_text= to_publish_text[pos : lang_text_pos[i+1]]
+            }
+            if lang_list[i]==input_lang_tag {
+                split_text= strings.TrimSpace(next_stat.Text)
+            }
+            if i==0 {
+                output_text = strings.Trim(split_text, "\n")
+            }else {
+                output_text = output_text + fmt.Sprintf("\n\n%s", strings.Trim(split_text, "\n"))
+            }
+
+            //lang_content = lang_content + fmt.Sprintf("\n\n[%s] %s", key, value)
+
+        }
+        publish_str := fmt.Sprintf("%s:%s", lang_list_str,output_text)
+        fmt.Println(publish_str)
+        return false, ""
+    } else {
+        return false, fmt.Sprintf("wrong state. state: %s , next state: %s", stat.Name, next_stat.Name)
+    }
+//&{TRANSLATE [en][zh]:[en] To unleash the full power of the federal government, I'm officially declaring a national emergency
+//    [zh] 为了 释放 联邦 政府 的 全部 权力 ， 我 正式 宣布 国家 紧急 状态 20771632 20771632}
 }

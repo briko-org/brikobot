@@ -228,6 +228,12 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 						if stat_next.Name == "INPUT" && r == true {
 							go stat_next.RequestBriko(BRIKO_API, REQUEST_LANG_LIST , update.Message.MessageID, ch)
 						}
+						if stat_next.Name == "UPDATE" && r == true {
+                            fmt.Println("==========update message")
+                            fmt.Println(stat)
+                            fmt.Println(stat_next)
+                            stat.MergeUpdateState(stat_next)
+                        }
 
 						if stat_next.Name == "PUBLISH" && r == true {
 							idx := strings.Index(stat.Text, ":")
