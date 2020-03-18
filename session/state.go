@@ -194,7 +194,15 @@ func (stat *State) RequestBriko(APIURL string, lang_list []string, msgId int, ch
 func (stat *State) MergeUpdateState(next_stat *State) (bool, string){
     if next_stat.Name == "UPDATE" && (stat.Name == "TRANSLATE" || stat.Name == "UPDATE") {
 
+        if len(strings.TrimSpace(next_stat.Text))<=4 {
+            return false, "update text format error"
+        }
+
+
         idx := strings.Index(stat.Text, ":")
+        if idx <= 0 {
+            return false, "update text format error"
+        }
         lang_list_str := stat.Text[:idx]
         to_publish_text := stat.Text[idx+1:]
         regex := *regexp.MustCompile(`\[([A-Za-z]{2})\]`)
@@ -213,6 +221,7 @@ func (stat *State) MergeUpdateState(next_stat *State) (bool, string){
         } else {
             fmt.Println("no language tag")
         }
+
         input_lang_tag := strings.TrimSpace(next_stat.Text)[:4]
 
         output_text :=""
