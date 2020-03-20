@@ -239,7 +239,11 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
                             fmt.Println("==========update message")
                             fmt.Println(stat)
                             fmt.Println(stat_next)
-                            stat.MergeUpdateState(stat_next)
+                            r, str = stat.MergeUpdateState(stat_next)
+                            if r == true {
+                                stat_next.Text=str
+						        r, str = stat.NextUpdate(stat_next, db)
+                            }
                         }
 
 						if stat_next.Name == "PUBLISH" && r == true {

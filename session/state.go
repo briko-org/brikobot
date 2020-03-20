@@ -92,6 +92,9 @@ func (stat *State) NextUpdate(nextstat *State, db *database.Db) (bool, string) {
 
 	if if_allowed_transition == true {
 		//update
+        fmt.Println("=============")
+        fmt.Println(nextstat.Text)
+        fmt.Println(stat.Text)
 		commandtag, err := db.SetChatState(nextstat.Chat_id, nextstat.U_id, nextstat.Name, nextstat.Text)
 		fmt.Println(commandtag)
 		fmt.Println(err)
@@ -251,8 +254,7 @@ func (stat *State) MergeUpdateState(next_stat *State) (bool, string){
 
         }
         publish_str := fmt.Sprintf("%s:%s", lang_list_str,output_text)
-        fmt.Println(publish_str)
-        return false, ""
+        return true, publish_str
     } else {
         return false, fmt.Sprintf("wrong state. state: %s , next state: %s", stat.Name, next_stat.Name)
     }
