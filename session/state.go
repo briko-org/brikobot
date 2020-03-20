@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"fmt"
 	"io/ioutil"
+    "github.com/asaskevich/govalidator"
 	"github.com/virushuo/brikobot/database"
 	"net/http"
 	"regexp"
@@ -128,14 +129,6 @@ func (stat *State) NextState() []string {
 }
 
 func (stat *State) RequestBriko(APIURL string, lang_list []string, msgId int, ch chan State) {
-	//'{"msgType": "Translation", "msgID" : "BOT00012234", "sourceLang" : "EN", "requestLang" : ["JA", "ZH"], "sourceContent" : "I have an apple."}'
-	//Name string
-	//Text string
-	//U_id int
-	//Chat_id int64
-
-	//lang_list := [4]string{"en", "jp", "fr", "zh"}
-
     fmt.Println("===lang_list: request")
     fmt.Println(lang_list)
 	data := &requestMsg{
@@ -148,13 +141,26 @@ func (stat *State) RequestBriko(APIURL string, lang_list []string, msgId int, ch
 	res := regex.FindStringSubmatch(stat.Text)
 	if len(res) > 1 {
 		data.SourceLang = strings.ToLower(res[1])
-		data.SourceContent = string(stat.Text[4:])
+		//data.SourceContent = string(stat.Text[4:])
+
+        split_list := strings.Split(stat.Text, " ")
+        last_str := split_list[len(split_list)-1]
+        validURL := govalidator.IsURL(last_str)
+        end_pos := len(last_str)-1
+        if validURL == true {
+            end_pos = len(stat.Text) - len(last_str)
+        }
+
 		requestLang := []string{}
 		for _, value := range lang_list {
 			if value != data.SourceLang {
 				requestLang = append(requestLang, value)
 			}
 		}
+
+        data.SourceContent = string(stat.Text[4:end_pos])
+        SourceURL := string(stat.Text[end_pos:])
+
 		data.RequestLang = requestLang
 		output, _ := json.Marshal(data)
 		resp, _ := http.Post(APIURL, "application/json", bytes.NewBuffer(output))
@@ -173,7 +179,7 @@ func (stat *State) RequestBriko(APIURL string, lang_list []string, msgId int, ch
 			fmt.Println(err) //TODO: send the error msg to bot
 		} else {
 			if rmsg.MsgFlag == "success" {
-                lang_content := fmt.Sprintf("[%s] %s", data.SourceLang, data.SourceContent)
+                lang_content := fmt.Sprintf("[%s] %s %s", data.SourceLang, data.SourceContent, SourceURL)
 				lang_list_str := fmt.Sprintf("[%s]", data.SourceLang)
 				translation := rmsg.TranslationResults
 				for key, value := range translation {
@@ -205,7 +211,7 @@ func (stat *State) MergeUpdateState(next_stat *State) (bool, string){
         }
         lang_list_str := stat.Text[:idx]
         to_publish_text := stat.Text[idx+1:]
-        regex := *regexp.MustCompile(`\[([A-Za-z]{2})\]`)
+        regex := *regexp.MustCompile(`\[([A-Za-z]{2})\]`) //match language tags
         res := regex.FindAllStringSubmatch(lang_list_str, -1)
         lang_list := make([]string, len(res))
         lang_text_pos := make([]int, len(res))

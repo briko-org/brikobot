@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/virushuo/brikobot/database"
 	"github.com/virushuo/brikobot/session"
+    "github.com/asaskevich/govalidator"
 	//"database/sql"
 	//"errors"
 	"log"
@@ -119,6 +120,12 @@ func verifyCommandMsg(message string) (bool,string){
         if len(inputstr) > 4 + MIN_INPUT_LENGTH {
             match, _:= regexp.Match(`\[([A-Z]{2})\]`, []byte(strings.ToUpper(inputstr[:4])))
             if match == true{
+                split_list := strings.Split(inputstr, " ")
+                last_str := split_list[len(split_list)-1]
+                validURL := govalidator.IsURL(last_str)
+                if validURL == false {
+                    return false, "The original URL is required."
+                }
                 return true,""
             }else {
                 return false, "no language tag. for example: /input [EN]I have an apple."
@@ -302,6 +309,7 @@ func readTranslateChannel(c chan session.State, bot *tgbotapi.BotAPI, db *databa
 func main() {
 	loadconf()
 	loadwhitelist()
+
 	db, err := database.New(PG_URL)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
