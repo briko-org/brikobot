@@ -26,6 +26,7 @@ var (
     MIN_INPUT_LENGTH int
     BRIKO_API   string
     REQUEST_LANG_LIST []string
+    HELP_TEXT string
 )
 
 func makeRankingKeyboard(lang_list []string) tgbotapi.InlineKeyboardMarkup {
@@ -60,6 +61,7 @@ func loadconf() {
 	MIN_INPUT_LENGTH = viper.GetInt("MIN_INPUT_LENGTH")
     BRIKO_API = viper.GetString("BRIKO_API")
 	REQUEST_LANG_LIST = viper.GetStringSlice("REQUEST_LANG_LIST")
+    HELP_TEXT = viper.GetString("HELP_TEXT")
 }
 
 func loadwhitelist() {
@@ -124,14 +126,14 @@ func verifyCommandMsg(message string) (bool,string){
                 last_str := split_list[len(split_list)-1]
                 validURL := govalidator.IsURL(last_str)
                 if validURL == false {
-                    return false, "The original URL is required."
+                    return false, "The original URL is required. eg: /input [en] this is an apple. https://thisisanapple.com"
                 }
                 return true,""
             }else {
-                return false, "no language tag. for example: /input [EN]I have an apple."
+                return false, "no language tag. eg: /input [en] this is an apple. https://thisisanapple.com"
             }
         } else {
-            return false, fmt.Sprintf("min text length is %d", 4 + MIN_INPUT_LENGTH)
+            return false, fmt.Sprintf("minimum input length is %d", 4 + MIN_INPUT_LENGTH)
         }
     }
     return true, ""
@@ -162,29 +164,33 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 						fmt.Fprintf(os.Stderr, "commandtag: %v\n", commandtag)
 					} else {
 						re_msg := tgbotapi.NewMessage(int64(update.CallbackQuery.From.ID), "")
-						re_msg.Text = fmt.Sprintf("Ranking %s Message %d has been submitted.", update.CallbackQuery.Data, update.CallbackQuery.Message.MessageID)
+						re_msg.Text = fmt.Sprintf("Rating %s Message %d has been submitted.", update.CallbackQuery.Data, update.CallbackQuery.Message.MessageID)
 						bot.Send(re_msg)
 					}
 				} else {
-					fmt.Fprintf(os.Stderr, "ranking value strconv error: %s %v\n", update.CallbackQuery.Data, err)
+					fmt.Fprintf(os.Stderr, "rating value strconv error: %s %v\n", update.CallbackQuery.Data, err)
 				}
 				bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
 			}
 		}
 		if update.Message != nil {
-
 			chat_id := update.Message.Chat.ID
 			u_id := update.Message.From.ID
 			n, t, err := db.GetChatState(chat_id, u_id)
 			msgtext := "default text"
 
 			switch []byte(update.Message.Text)[0] {
+            case 63: //"?"
+                msgtext = HELP_TEXT
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
+				bot.Send(msg)
 			case 47: //start with "/"
-				if update.Message.Text == "/new" {
+				if update.Message.Text == "/help" || update.Message.Text == "/?" {
+                    msgtext = HELP_TEXT
+                } else if update.Message.Text == "/new" {
 					stat := session.New(u_id, chat_id)
 					stat.Name = "NONE"
 					stat.Text = ""
-
 					stat_next := session.New(u_id, chat_id)
 					stat_next.Name = "NEW"
 					stat_next.Text = t
@@ -200,7 +206,7 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 					} else if err != nil {
 						msgtext = "Error: " + err.Error()
 					} else {
-						msgtext = fmt.Sprintf("Show current state:\nState: %s\nText: %s", n, t)
+						msgtext = fmt.Sprintf("Show current status:\nState: %s\nText: %s", n, t)
 					}
 				} else {
                     verifyresult, verifymsg := verifyCommandMsg(update.Message.Text)
@@ -275,7 +281,14 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 					}
 				}
                 if len(msgtext)==0 {
-                    msgtext = "unknown command"
+					stat := session.New(u_id, chat_id)
+					stat.Name = n
+					stat.Text = t
+                    state_list := stat.NextState()
+                    menuitem := session.MakeMenu(state_list)
+                    msgtext = "Unknown command\n"
+                    msgtext += menuitem
+
                 }
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
 				bot.Send(msg)
@@ -303,8 +316,14 @@ func readTranslateChannel(c chan session.State, bot *tgbotapi.BotAPI, db *databa
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		} else {
 			fmt.Fprintf(os.Stderr, "commandtag: %v\n", commandtag)
-			msg := tgbotapi.NewMessage(stat.Chat_id, stat.Text)
-			//sentmsg, err := bot.Send(msg)
+
+	        var state_list []string
+	        state_list = append(state_list, "UPDATE")
+	        state_list = append(state_list, "SHOW")
+	        state_list = append(state_list, "PUBLISH")
+	        state_list = append(state_list, "NEW")
+            menuitem := session.MakeMenu(state_list)
+            msg := tgbotapi.NewMessage(stat.Chat_id, fmt.Sprintf("%s\n--------\nYou can send these commands:\n%s",stat.Text, menuitem))
 			bot.Send(msg)
 		}
 	}
@@ -329,5 +348,4 @@ func main() {
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 	startservice(bot, db)
-
 }

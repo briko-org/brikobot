@@ -2,4 +2,6 @@ PG_URL = "postgres://localapp:PASSWORD@dbserver/brikobot?sslmode=disable"
 BOT_TOKEN = ""
 CHANNEL_CHAT_ID =
 MIN_INPUT_LENGTH = 10
+BRIKO_API = "http://0.0.0.0:6660/translator"
 REQUEST_LANG_LIST= ["en", "zh"]
+HELP_TEXT = "About BRIKO: https://briko.org\nAbout this project: https://github.com/briko-org/briko_for_covid\n\ninput /new to start."

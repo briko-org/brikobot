@@ -45,11 +45,29 @@ type responseMsg struct {
 	TranslationResults map[string]string `json:"translationResults"`
 }
 
-func makeMenu(state_list []string) string {
+
+
+func menuItemdetail(cmd string) string{
+    cmd_detail := cmd
+    if cmd == "input" {
+        cmd_detail = "input to submit content to BRIKOAI.\nformat: /input [lang] content source_url.\neg: /input [en] this is an apple. https://thisisanapple.com"
+    } else if cmd == "update" {
+        cmd_detail = "update to edit incorrect translations.\nformat: /update [lang] content.\neg: /update [en] this is a pineapple."
+    } else if cmd == "publish" {
+        cmd_detail = "publish to publish to the channel."
+    } else if cmd == "show" {
+        cmd_detail = "show to show the current status."
+    } else if cmd == "new" {
+        cmd_detail = "new to initialize a new task."
+    }
+	return fmt.Sprintf("/%s\n", cmd_detail)
+}
+
+func MakeMenu(state_list []string) string {
 	var menu string
 	for _, value := range state_list {
 		if value != "TRANSLATE" {
-			menu += fmt.Sprintf("/%s\n", strings.ToLower(value))
+	        menu += menuItemdetail(strings.ToLower(value))
 		}
 	}
 	return menu
@@ -58,22 +76,27 @@ func makeMenu(state_list []string) string {
 func (stat *State) Response(nextstat *State) string {
 	var msg string
 	stat_list := stat.NextState()
+    wait_for_briko_ai := false
 	for _, name := range stat_list {
 		if name == "TRANSLATE" {
 			msg = "Waiting for BRIKO AI translate"
+            wait_for_briko_ai = true
 		}
 	}
 
-	if nextstat.Name == stat.Name {
-		msg = msg + "\nshow menu" + "\n" + makeMenu(stat_list)
-	} else {
-		if nextstat.Name == "TRANSLATE" && stat.Name == "INPUT" {
-			msg = "Waiting for BRIKO AI translate"
-		} else if nextstat.Name == "NEW" {
-			msg = "new task,\nmenu" + "\n" + makeMenu(stat_list)
-		}
-	}
-
+    if wait_for_briko_ai  == true {
+	    msg = "Waiting for BRIKO AI translate, input /show to check current status."
+    } else {
+	    if nextstat.Name == stat.Name {
+            if stat.Name == "UPDATE"{
+                msg = msg + "\nUpdate: " + stat.Text
+            }
+	        msg = msg + "\nYou can send these commands:\n" + MakeMenu(stat_list)
+	    }
+	    if nextstat.Name == "NEW" {
+	        msg = "New task initiated,\nYou can send these commands:" + "\n" + MakeMenu(stat_list)
+	    }
+    }
 	return msg
 }
 
@@ -132,8 +155,6 @@ func (stat *State) NextState() []string {
 }
 
 func (stat *State) RequestBriko(APIURL string, lang_list []string, msgId int, ch chan State) {
-    fmt.Println("===lang_list: request")
-    fmt.Println(lang_list)
 	data := &requestMsg{
 		MsgType:    "Translation",
 		MsgID:      strconv.Itoa(msgId),
@@ -144,8 +165,6 @@ func (stat *State) RequestBriko(APIURL string, lang_list []string, msgId int, ch
 	res := regex.FindStringSubmatch(stat.Text)
 	if len(res) > 1 {
 		data.SourceLang = strings.ToLower(res[1])
-		//data.SourceContent = string(stat.Text[4:])
-
         split_list := strings.Split(stat.Text, " ")
         last_str := split_list[len(split_list)-1]
         validURL := govalidator.IsURL(last_str)
@@ -258,6 +277,4 @@ func (stat *State) MergeUpdateState(next_stat *State) (bool, string){
     } else {
         return false, fmt.Sprintf("wrong state. state: %s , next state: %s", stat.Name, next_stat.Name)
     }
-//&{TRANSLATE [en][zh]:[en] To unleash the full power of the federal government, I'm officially declaring a national emergency
-//    [zh] 为了 释放 联邦 政府 的 全部 权力 ， 我 正式 宣布 国家 紧急 状态 20771632 20771632}
 }
