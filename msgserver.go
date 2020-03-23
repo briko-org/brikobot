@@ -51,9 +51,10 @@ func makeRankingKeyboard(lang_list []string) tgbotapi.InlineKeyboardMarkup {
 }
 
 func loadconf() {
+	viper.AddConfigPath(filepath.Dir("./config/"))
+	viper.AddConfigPath(filepath.Dir("."))
 	viper.SetConfigName("config")
 	viper.SetConfigType("toml")
-	viper.AddConfigPath(filepath.Dir("."))
 	viper.ReadInConfig()
 	PG_URL = viper.GetString("PG_URL")
 	BOT_TOKEN = viper.GetString("BOT_TOKEN")
@@ -67,9 +68,10 @@ func loadconf() {
 func loadwhitelist() {
 	var WHITELIST_ID []string
 
+	viper.AddConfigPath(filepath.Dir("./config/"))
+	viper.AddConfigPath(filepath.Dir("."))
 	viper.SetConfigName("whitelist")
 	viper.SetConfigType("yaml")
-	viper.AddConfigPath(filepath.Dir("."))
 
 	err := viper.ReadInConfig()
 	if err != nil {
