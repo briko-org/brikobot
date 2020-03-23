@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"fmt"
 	"io/ioutil"
-    "github.com/asaskevich/govalidator"
 	"github.com/virushuo/brikobot/database"
+	"github.com/virushuo/brikobot/util"
 	"net/http"
 	"regexp"
 	"strings"
@@ -91,7 +91,7 @@ func (stat *State) Response(nextstat *State) string {
             if stat.Name == "UPDATE"{
                 msg = msg + "\nUpdate: " + stat.Text
             }
-	        msg = msg + "\nYou can send these commands:\n" + MakeMenu(stat_list)
+	        msg = msg + "\n--------\nYou can send these commands:\n" + MakeMenu(stat_list)
 	    }
 	    if nextstat.Name == "NEW" {
 	        msg = "New task initiated,\nYou can send these commands:" + "\n" + MakeMenu(stat_list)
@@ -115,12 +115,11 @@ func (stat *State) NextUpdate(nextstat *State, db *database.Db) (bool, string) {
 
 	if if_allowed_transition == true {
 		//update
-        fmt.Println("=============")
-        fmt.Println(nextstat.Text)
-        fmt.Println(stat.Text)
 		commandtag, err := db.SetChatState(nextstat.Chat_id, nextstat.U_id, nextstat.Name, nextstat.Text)
-		fmt.Println(commandtag)
-		fmt.Println(err)
+        fmt.Println(commandtag)
+        if err != nil {
+            fmt.Println(err)
+        }
 		return true, nextstat.Response(nextstat)
 	}
 	return false, stat.Response(nextstat)
@@ -131,7 +130,6 @@ func (stat *State) NextState() []string {
 	switch stat.Name {
 	case "HELP":
 	case "NONE":
-		state_list = append(state_list, "ABOUT")
 		state_list = append(state_list, "HELP")
 		state_list = append(state_list, "NEW")
 	case "NEW":
@@ -139,15 +137,15 @@ func (stat *State) NextState() []string {
 	case "INPUT":
 		state_list = append(state_list, "INPUT")
 		state_list = append(state_list, "TRANSLATE")
+		state_list = append(state_list, "NEW")
 	case "TRANSLATE":
 		state_list = append(state_list, "UPDATE")
 		state_list = append(state_list, "PUBLISH")
+		state_list = append(state_list, "NEW")
 	case "UPDATE":
 		state_list = append(state_list, "UPDATE")
 		state_list = append(state_list, "PUBLISH")
-	case "IMPROVE":
-		state_list = append(state_list, "SUBMIT")
-	case "SUBMIT":
+		state_list = append(state_list, "NEW")
 	case "PUBLISH":
 		state_list = append(state_list, "NEW")
 	}
@@ -167,7 +165,7 @@ func (stat *State) RequestBriko(APIURL string, lang_list []string, msgId int, ch
 		data.SourceLang = strings.ToLower(res[1])
         split_list := strings.Split(stat.Text, " ")
         last_str := split_list[len(split_list)-1]
-        validURL := govalidator.IsURL(last_str)
+        validURL := util.IsURL(last_str)
         end_pos := len(last_str)-1
         if validURL == true {
             end_pos = len(stat.Text) - len(last_str)

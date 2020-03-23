@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/virushuo/brikobot/database"
 	"github.com/virushuo/brikobot/session"
-    "github.com/asaskevich/govalidator"
+	"github.com/virushuo/brikobot/util"
 	//"database/sql"
 	//"errors"
 	"log"
@@ -124,7 +124,7 @@ func verifyCommandMsg(message string) (bool,string){
             if match == true{
                 split_list := strings.Split(inputstr, " ")
                 last_str := split_list[len(split_list)-1]
-                validURL := govalidator.IsURL(last_str)
+                validURL := util.IsURL(last_str)
                 if validURL == false {
                     return false, "The original URL is required. eg: /input [en] this is an apple. https://thisisanapple.com"
                 }
@@ -242,9 +242,6 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 							go stat_next.RequestBriko(BRIKO_API, REQUEST_LANG_LIST , update.Message.MessageID, ch)
 						}
 						if stat_next.Name == "UPDATE" && r == true {
-                            fmt.Println("==========update message")
-                            fmt.Println(stat)
-                            fmt.Println(stat_next)
                             r, str = stat.MergeUpdateState(stat_next)
                             if r == true {
                                 stat_next.Text=str
@@ -273,11 +270,6 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
                             break
 						}
 						msgtext = str
-						//fmt.Println("DEBUG: stat")
-						//fmt.Println(stat)
-						//fmt.Println(stat_next)
-						//fmt.Println(r)
-						//fmt.Println(str)
 					}
 				}
                 if len(msgtext)==0 {
