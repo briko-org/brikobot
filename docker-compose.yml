@@ -1,0 +1,20 @@
+version: "3.7"
+services:
+  brikobotdb-prod:
+    image: postgres
+    restart: always
+    volumes:
+      - "./postgresql:/var/lib/postgresql/data"
+    ports:
+      - "5432:5432"
+    environment:
+        POSTGRES_PASSWORD: YOUR_PASSWORD
+  
+  brikobot:
+    image: "brikoorg/brikobot"
+    volumes:
+      - "./config:/dist/config"
+    depends_on:
+      - brikobotdb-prod
+    links:
+      - brikobotdb-prod
