@@ -50,7 +50,7 @@ type responseMsg struct {
 func menuItemdetail(cmd string) string{
     cmd_detail := cmd
     if cmd == "input" {
-        cmd_detail = "input to submit content to BRIKOAI.\nformat: /input [lang] content source_url.\neg: /input [en] this is an apple. https://thisisanapple.com"
+        cmd_detail = "input to submit content to BRIKO AI.\nformat: /input [lang] content source_url. Support languages: en/zh/jp/fr \neg: /input [en] this is an apple. https://thisisanapple.com"
     } else if cmd == "update" {
         cmd_detail = "update to edit incorrect translations.\nformat: /update [lang] content.\neg: /update [en] this is a pineapple."
     } else if cmd == "publish" {
