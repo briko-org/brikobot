@@ -152,7 +152,7 @@ func (stat *State) NextState() []string {
 	return state_list
 }
 
-func (stat *State) RequestBriko(APIURL string, lang_list []string, msgId int, ch chan State) {
+func (stat *State) RequestBriko(APIURL string, lang_list []string, lang_correlation map[string]string, msgId int, ch chan State) {
 	data := &requestMsg{
 		MsgType:    "Translation",
 		MsgID:      strconv.Itoa(msgId),
@@ -163,6 +163,11 @@ func (stat *State) RequestBriko(APIURL string, lang_list []string, msgId int, ch
 	res := regex.FindStringSubmatch(stat.Text)
 	if len(res) > 1 {
 		data.SourceLang = strings.ToLower(res[1])
+
+        if lang_correlation[data.SourceLang] !=""{
+            data.SourceLang = lang_correlation[data.SourceLang]
+        }
+
         split_list := strings.Split(stat.Text, " ")
         last_str := split_list[len(split_list)-1]
         validURL := util.IsURL(last_str)
@@ -191,11 +196,14 @@ func (stat *State) RequestBriko(APIURL string, lang_list []string, msgId int, ch
             //TODO: send the error msg to bot
         }
         bodyString := string(bodyBytes)
+        fmt.Println("======bodyString")
+        fmt.Println(bodyString)
+        fmt.Println(err1)
         d := json.NewDecoder(strings.NewReader(bodyString))
 		rmsg := &responseMsg{}
 		err := d.Decode(rmsg)
 		if err != nil {
-            fmt.Println("===rmsg err");
+            fmt.Println("===responseMsg:");
 			fmt.Println(err) //TODO: send the error msg to bot
 		} else {
 			if rmsg.MsgFlag == "success" {
@@ -217,7 +225,7 @@ func (stat *State) RequestBriko(APIURL string, lang_list []string, msgId int, ch
 }
 
 
-func (stat *State) MergeUpdateState(next_stat *State) (bool, string){
+func (stat *State) MergeUpdateState(next_stat *State, lang_correlation map[string]string) (bool, string){
     if next_stat.Name == "UPDATE" && (stat.Name == "TRANSLATE" || stat.Name == "UPDATE") {
 
         if len(strings.TrimSpace(next_stat.Text))<=4 {
@@ -249,6 +257,13 @@ func (stat *State) MergeUpdateState(next_stat *State) (bool, string){
         }
 
         input_lang_tag := strings.TrimSpace(next_stat.Text)[:4]
+        input_text := strings.TrimSpace(next_stat.Text)[4:]
+
+        if lang_correlation[input_lang_tag[1:3]] !=""{
+            input_lang_tag = "["+lang_correlation[input_lang_tag[1:3]]+"]"
+        }
+        fmt.Println(input_lang_tag)
+        fmt.Println(input_lang_tag)
 
         output_text :=""
 	    for i, pos := range lang_text_pos {
@@ -259,7 +274,8 @@ func (stat *State) MergeUpdateState(next_stat *State) (bool, string){
                 split_text= to_publish_text[pos : lang_text_pos[i+1]]
             }
             if lang_list[i]==input_lang_tag {
-                split_text= strings.TrimSpace(next_stat.Text)
+                //split_text= strings.TrimSpace(next_stat.Text)
+                split_text= fmt.Sprintf("%s %s",input_lang_tag, input_text)
             }
             if i==0 {
                 output_text = strings.Trim(split_text, "\n")
