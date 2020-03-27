@@ -9,8 +9,27 @@ import (
 	"github.com/virushuo/brikobot/database"
 )
 
-func ProcessTest() string {
-    return "ProcessTest"
+func verifyCommandMsg(message string) (bool,string){
+    if strings.Index(message, "/input") == 0 {
+        inputstr := strings.TrimLeft(message[6:], " ")
+        if len(inputstr) > 4 + MIN_INPUT_LENGTH {
+            match, _:= regexp.Match(`\[([A-Z]{2})\]`, []byte(strings.ToUpper(inputstr[:4])))
+            if match == true{
+                split_list := strings.Split(inputstr, " ")
+                last_str := split_list[len(split_list)-1]
+                validURL := util.IsURL(last_str)
+                if validURL == false {
+                    return false, "The original URL is required. eg: /input [en] this is an apple. https://thisisanapple.com"
+                }
+                return true,""
+            }else {
+                return false, "no language tag. eg: /input [en] this is an apple. https://thisisanapple.com"
+            }
+        } else {
+            return false, fmt.Sprintf("minimum input length is %d", 4 + MIN_INPUT_LENGTH)
+        }
+    }
+    return true, ""
 }
 
 func ProcessUpdateMessageWithSlash(bot *tgbotapi.BotAPI, update *tgbotapi.Update, ch chan session.State, db *database.Db,  u_id int, chat_id int64) string{
