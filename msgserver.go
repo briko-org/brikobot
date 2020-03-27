@@ -27,6 +27,7 @@ var (
     BRIKO_API   string
     REQUEST_LANG_LIST []string
     HELP_TEXT string
+    LANG_CORRELATION map[string]string
 )
 
 func makeRankingKeyboard(lang_list []string) tgbotapi.InlineKeyboardMarkup {
@@ -63,11 +64,11 @@ func loadconf() {
     BRIKO_API = viper.GetString("BRIKO_API")
 	REQUEST_LANG_LIST = viper.GetStringSlice("REQUEST_LANG_LIST")
     HELP_TEXT = viper.GetString("HELP_TEXT")
+    LANG_CORRELATION = viper.GetStringMapString("LANG_CORRELATION")
 }
 
 func loadwhitelist() {
 	var WHITELIST_ID []string
-
 	viper.AddConfigPath(filepath.Dir("./config/"))
 	viper.AddConfigPath(filepath.Dir("."))
 	viper.SetConfigName("whitelist")
@@ -241,10 +242,10 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 
 						r, str := stat.NextUpdate(stat_next, db)
 						if stat_next.Name == "INPUT" && r == true {
-							go stat_next.RequestBriko(BRIKO_API, REQUEST_LANG_LIST , update.Message.MessageID, ch)
+							go stat_next.RequestBriko(BRIKO_API, REQUEST_LANG_LIST, LANG_CORRELATION, update.Message.MessageID, ch)
 						}
 						if stat_next.Name == "UPDATE" && r == true {
-                            r, str = stat.MergeUpdateState(stat_next)
+                            r, str = stat.MergeUpdateState(stat_next, LANG_CORRELATION)
                             if r == true {
                                 stat_next.Text=str
 						        r, str = stat.NextUpdate(stat_next, db)
