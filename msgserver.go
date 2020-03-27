@@ -188,105 +188,11 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
 				bot.Send(msg)
 			case 47: //start with "/"
-				if update.Message.Text == "/help" || update.Message.Text == "/?" {
-                    msgtext = HELP_TEXT
-                } else if update.Message.Text == "/new" {
-					stat := session.New(u_id, chat_id)
-					stat.Name = "NONE"
-					stat.Text = ""
-					stat_next := session.New(u_id, chat_id)
-					stat_next.Name = "NEW"
-					stat_next.Text = t
-					r, str := stat.NextUpdate(stat_next, db)
-					if r == true {
-						msgtext = str
-					} else {
-						msgtext = "error"
-					}
-				} else if update.Message.Text == "/show" {
-					if err != nil && err.Error() == "no rows in result set" {
-						msgtext = "Current state is nil, send /help for help, send /new to start"
-					} else if err != nil {
-						msgtext = "Error: " + err.Error()
-					} else {
-						msgtext = fmt.Sprintf("Show current status:\nState: %s\nText: %s", n, t)
-					}
-				} else {
-                    verifyresult, verifymsg := verifyCommandMsg(update.Message.Text)
-                    if verifyresult == false {
-				        msg := tgbotapi.NewMessage(update.Message.Chat.ID, verifymsg)
-				        bot.Send(msg)
-                        break
-                    }
-					if err != nil && err.Error() == "no rows in result set" {
-						stat := session.New(u_id, chat_id)
-						stat.Name = "NONE"
-						stat.Text = ""
-						msgtext = stat.Response(session.New(u_id, chat_id))
-					} else if err == nil {
-						stat := session.New(u_id, chat_id)
-						stat.Name = n
-						stat.Text = t
-
-						stat_next := session.New(u_id, chat_id)
-						idx := strings.Index(update.Message.Text, " ")
-						if idx > 1 {
-							name := update.Message.Text[1:idx]
-							text := update.Message.Text[idx+1:]
-							stat_next.Name = strings.ToUpper(name)
-							stat_next.Text = text
-						} else {
-							stat_next.Name = strings.ToUpper(update.Message.Text[1:])
-							stat_next.Text = ""
-						}
-
-						r, str := stat.NextUpdate(stat_next, db)
-						if stat_next.Name == "INPUT" && r == true {
-							go stat_next.RequestBriko(BRIKO_API, REQUEST_LANG_LIST, LANG_CORRELATION, update.Message.MessageID, ch)
-						}
-						if stat_next.Name == "UPDATE" && r == true {
-                            r, str = stat.MergeUpdateState(stat_next, LANG_CORRELATION)
-                            if r == true {
-                                stat_next.Text=str
-						        r, str = stat.NextUpdate(stat_next, db)
-                            }
-                        }
-
-						if stat_next.Name == "PUBLISH" && r == true {
-							idx := strings.Index(stat.Text, ":")
-							lang_list_str := stat.Text[:idx]
-							to_publish_text := stat.Text[idx+1:]
-							regex := *regexp.MustCompile(`\[([A-Za-z]{2})\]`)
-							res := regex.FindAllStringSubmatch(lang_list_str, -1)
-							lang_list := make([]string, len(res))
-							if len(res) > 1 {
-								for i, value := range res {
-									if len(value) == 2 {
-										lang_list[i] = value[1]
-									}
-								}
-							} else {
-								fmt.Println("no language tag")
-							}
-
-							publishToChat(update.Message.From.ID, CHANNEL_CHAT_ID, to_publish_text, lang_list, bot, db)
-                            break
-						}
-						msgtext = str
-					}
-				}
-                if len(msgtext)==0 {
-					stat := session.New(u_id, chat_id)
-					stat.Name = n
-					stat.Text = t
-                    state_list := stat.NextState()
-                    menuitem := session.MakeMenu(state_list)
-                    msgtext = "Unknown command\n"
-                    msgtext += menuitem
-
+                msgtext = ProcessUpdateMessageWithSlash(bot, &update, ch, db,  u_id , chat_id )
+                if msgtext !=""{
+				    msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
+				    bot.Send(msg)
                 }
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
-				bot.Send(msg)
 			default:
                 msgtext = "unknown command"
 				if err != nil && err.Error() == "no rows in result set" {
