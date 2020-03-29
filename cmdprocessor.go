@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/virushuo/brikobot/session"
+	"github.com/virushuo/brikobot/util"
 	"fmt"
 	"strings"
 	"regexp"
@@ -33,11 +34,6 @@ func verifyCommandMsg(message string) (bool,string){
 }
 
 func ProcessUpdateMessageWithSlash(bot *tgbotapi.BotAPI, update *tgbotapi.Update, ch chan session.State, db *database.Db,  u_id int, chat_id int64) string{
-    fmt.Println("=========ProcessUpdateMessageWithSlash=========")
-    fmt.Println(u_id)
-    fmt.Println("chat_id")
-    fmt.Println(chat_id)
-
 	n, t, err := db.GetChatState(chat_id, u_id)
     var msgtext string
     if update.Message.Text == "/help" || update.Message.Text == "/?" {

@@ -54,3 +54,11 @@ GRANT ALL PRIVILEGES ON SCHEMA shard_1 TO localapp;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA shard_1 TO localapp;
 
 
+CREATE TABLE session ( 
+  chatkey char(32) PRIMARY KEY,
+  chat_id bigint not null,
+  u_id bigint not null,
+  data bytea
+);
+
+

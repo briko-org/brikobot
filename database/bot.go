@@ -30,3 +30,28 @@ func (db *Db) GetChatState(chat_id int64, u_id int) (string, string, error) {
 	}
 	return state, text, nil
 }
+
+
+func (db *Db) SetSession(chat_id int64, u_id int, data []byte) (pgconn.CommandTag, error) {
+	keystr := fmt.Sprintf("%d_%d", chat_id, u_id)
+	h := md5.New()
+	io.WriteString(h, keystr)
+	key := fmt.Sprintf("%x", h.Sum(nil))
+	r, err := db.pool.Exec(context.Background(), `INSERT INTO session (chatkey, chat_id, u_id, data) VALUES ($1, $2, $3, $4) ON CONFLICT (chatkey) DO UPDATE SET data=$4;`, key, chat_id, u_id, data)
+	return r, err
+}
+
+func (db *Db) GetSession(chat_id int64, u_id int) ([]byte, error) {
+	var data []byte
+	keystr := fmt.Sprintf("%d_%d", chat_id, u_id)
+	h := md5.New()
+	io.WriteString(h, keystr)
+	key := fmt.Sprintf("%x", h.Sum(nil))
+
+	err := db.pool.QueryRow(context.Background(), "SELECT data FROM session WHERE chatkey=$1 ", key).Scan(&data)
+	if err != nil {
+		return []byte(""), err
+	}
+	return data, nil
+}
+

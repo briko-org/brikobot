@@ -6,13 +6,13 @@ import (
 	"github.com/spf13/viper"
 	"github.com/virushuo/brikobot/database"
 	"github.com/virushuo/brikobot/session"
-	"github.com/virushuo/brikobot/util"
+	//"github.com/virushuo/brikobot/util"
 	//"database/sql"
 	//"errors"
 	"log"
 	"os"
 	"path/filepath"
-	"regexp"
+	//"regexp"
 	"strconv"
 	"strings"
 )
@@ -134,54 +134,79 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 	}
 	for update := range updates {
 		if update.CallbackQuery != nil {
-			callbackdata := strings.Split(update.CallbackQuery.Data, ",")
-			if len(callbackdata) == 2 {
-				lang := callbackdata[0]
-				user_ranking, err := strconv.Atoi(callbackdata[1])
-				if err == nil { // error: ranking value must be a int
-					commandtag, err := db.AddRanking(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID, update.CallbackQuery.From.ID, lang, user_ranking)
-					if err != nil {
-						fmt.Fprintf(os.Stderr, "error: %v\n", err)
-						fmt.Fprintf(os.Stderr, "commandtag: %v\n", commandtag)
-					} else {
-						re_msg := tgbotapi.NewMessage(int64(update.CallbackQuery.From.ID), "")
-						re_msg.Text = fmt.Sprintf("Rating %s Message %d has been submitted.", update.CallbackQuery.Data, update.CallbackQuery.Message.MessageID)
-						bot.Send(re_msg)
-					}
-				} else {
-					fmt.Fprintf(os.Stderr, "rating value strconv error: %s %v\n", update.CallbackQuery.Data, err)
-				}
-				bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
-			}
+            callbackcmd :=  strings.Split(update.CallbackQuery.Data, "_")
+			if len(callbackcmd) == 2 { //is callback cmd
+
+			    chat_id := int64(update.CallbackQuery.From.ID)
+			    u_id := update.CallbackQuery.From.ID
+                cmd := callbackcmd[0]
+                if cmd =="SETLANG" {
+				    resultmsg := ProcessUpdateCmdMessage(bot, cmd, callbackcmd[1], ch, db,  u_id , chat_id )
+
+                    fmt.Println(resultmsg)
+
+                    //resultmsg := ProcessUpdateMessageChat(bot, &update, ch, db,  u_id , chat_id )
+                    //re_msg := tgbotapi.NewMessage(int64(update.CallbackQuery.From.ID), fmt.Sprintf("Set lang %s", callbackcmd[1]))
+				    //bot.Send(re_msg)
+                }
+            } else {
+			    callbackdata := strings.Split(update.CallbackQuery.Data, ",")
+			    if len(callbackdata) == 2 {
+			    	lang := callbackdata[0]
+			    	user_ranking, err := strconv.Atoi(callbackdata[1])
+			    	if err == nil { // error: ranking value must be a int
+			    		commandtag, err := db.AddRanking(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID, update.CallbackQuery.From.ID, lang, user_ranking)
+			    		if err != nil {
+			    			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			    			fmt.Fprintf(os.Stderr, "commandtag: %v\n", commandtag)
+			    		} else {
+			    			re_msg := tgbotapi.NewMessage(int64(update.CallbackQuery.From.ID), "")
+			    			re_msg.Text = fmt.Sprintf("Rating %s Message %d has been submitted.", update.CallbackQuery.Data, update.CallbackQuery.Message.MessageID)
+			    			bot.Send(re_msg)
+			    		}
+			    	} else {
+			    		fmt.Fprintf(os.Stderr, "rating value strconv error: %s %v\n", update.CallbackQuery.Data, err)
+			    	}
+			    	bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
+			    }
+            }
+
 		}
 		if update.Message != nil {
 			chat_id := update.Message.Chat.ID
 			u_id := update.Message.From.ID
 			n, t, err := db.GetChatState(chat_id, u_id)
 			msgtext := "default text"
+            fmt.Println(n)
+            fmt.Println(t)
+            fmt.Println(err)
 
 			switch []byte(update.Message.Text)[0] {
             case 63: //"?"
                 msgtext = HELP_TEXT
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
 				bot.Send(msg)
-			case 47: //start with "/"
-                msgtext = ProcessUpdateMessageWithSlash(bot, &update, ch, db,  u_id , chat_id )
-                if msgtext !=""{
-				    msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
-				    bot.Send(msg)
-                }
+			//case 47: //start with "/"
+            //    msgtext = ProcessUpdateMessageWithSlash(bot, &update, ch, db,  u_id , chat_id )
+            //    if msgtext !=""{
+			//	    msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
+			//	    bot.Send(msg)
+            //    }
 			default:
-                msgtext = "unknown command"
-				if err != nil && err.Error() == "no rows in result set" {
-					msgtext = "Current state is nil, send /help for help, send /new to start"
-				} else if err != nil {
-					msgtext = "Error: " + err.Error()
-				} else {
-					msgtext = fmt.Sprintf("Show current state:\nState: %s\nText: %s", n, t)
-				}
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
-				bot.Send(msg)
+                resultmsg := ProcessUpdateMessageChat(bot, &update, ch, db,  u_id , chat_id )
+                fmt.Println("===resultmsg====")
+                fmt.Println(resultmsg)
+
+                //msgtext = "unknown command"
+				//if err != nil && err.Error() == "no rows in result set" {
+				//	msgtext = "Current state is nil, send /help for help, send /new to start"
+				//} else if err != nil {
+				//	msgtext = "Error: " + err.Error()
+				//} else {
+				//	msgtext = fmt.Sprintf("Show current state:\nState: %s\nText: %s", n, t)
+				//}
+				//msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
+				//bot.Send(msg)
 			}
 		}
 	}
