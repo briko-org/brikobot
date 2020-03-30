@@ -41,7 +41,7 @@ type Session struct {
     Output OutputMessage
 }
 
-func makeReplyKeyboard(lang_list []string) tgbotapi.InlineKeyboardMarkup {
+func makeReplyKeyboard(lang_list []string, submit bool) tgbotapi.InlineKeyboardMarkup {
 	var keyboard [][]tgbotapi.InlineKeyboardButton
 
 	var row []tgbotapi.InlineKeyboardButton
@@ -51,6 +51,15 @@ func makeReplyKeyboard(lang_list []string) tgbotapi.InlineKeyboardMarkup {
 	}
 	keyboard = append(keyboard, row)
 
+    if submit ==true {
+	    var submitrow []tgbotapi.InlineKeyboardButton
+	    button := tgbotapi.NewInlineKeyboardButtonData("OK, translate!", "SUBMIT_MSG")
+	    submitrow = append(submitrow, button)
+	    button = tgbotapi.NewInlineKeyboardButtonData("No, Cancel.", "CANCEL_MSG")
+	    submitrow = append(submitrow, button)
+	    keyboard = append(keyboard, submitrow)
+    }
+
 	return tgbotapi.InlineKeyboardMarkup{
 		InlineKeyboard: keyboard,
 	}
@@ -58,12 +67,10 @@ func makeReplyKeyboard(lang_list []string) tgbotapi.InlineKeyboardMarkup {
 
 
 func (inmsg *InputMessage) verifyData(chat_id int64) (bool, tgbotapi.MessageConfig) {
+    lang_list := []string {"zh", "en", "fr", "jp"}
     if inmsg.Text == ""{
         return false, tgbotapi.NewMessage(chat_id, "please input the content")
     } else if inmsg.Lang == "" {
-        lang_list := []string {"zh", "en", "fr", "jp"}
-        //responseMsg := tgbotapi.NewMessage(chat_id, "please input the content")
-		//responseMsg.ReplyMarkup = makeReplyKeyboard(lang_list)
 		responseMsg := tgbotapi.MessageConfig{
 			BaseChat: tgbotapi.BaseChat{
 				ChatID: chat_id,
@@ -73,12 +80,25 @@ func (inmsg *InputMessage) verifyData(chat_id int64) (bool, tgbotapi.MessageConf
 			//ParseMode: "Markdown",
 			DisableWebPagePreview: false,
 		}
-		responseMsg.ReplyMarkup = makeReplyKeyboard(lang_list)
+		responseMsg.ReplyMarkup = makeReplyKeyboard(lang_list, false)
         return false, responseMsg
     } else if inmsg.SourceURL == "" {
         return false, tgbotapi.NewMessage(chat_id, "please input the source url")
     }
-    return true, tgbotapi.NewMessage(chat_id, fmt.Sprintf("date is ok to submit to the briko AI: %s %s %s", inmsg.Lang, inmsg.Text, inmsg.SourceURL))
+
+	responseMsg := tgbotapi.MessageConfig{
+		BaseChat: tgbotapi.BaseChat{
+			ChatID: chat_id,
+			ReplyToMessageID: 0,
+		},
+        Text: fmt.Sprintf("Input: [%s]%s source:%s", inmsg.Lang, inmsg.Text, inmsg.SourceURL) ,
+		//ParseMode: "Markdown",
+		DisableWebPagePreview: false,
+	}
+	responseMsg.ReplyMarkup = makeReplyKeyboard(lang_list, true)
+    return true, responseMsg
+
+    //return true, tgbotapi.NewMessage(chat_id, fmt.Sprintf("date is ok to submit to the briko AI: %s %s %s", inmsg.Lang, inmsg.Text, inmsg.SourceURL))
 }
 
 func updateSession(input string, session *Session){
@@ -156,6 +176,17 @@ func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch 
             }
 	        bot.Send(responsemsg)
         }
+    } else if cmd =="SUBMIT"{
+        //call api
+    } else if cmd =="CANCEL"{
+        _, err := db.DelSession(chat_id, u_id)
+        if err == nil {
+            responsemsg := tgbotapi.NewMessage(chat_id, "Cancelled, please input the content.")
+	        bot.Send(responsemsg)
+        } else {
+            fmt.Println(err)
+        }
+        //delete session 
     } else {
         re_msg := tgbotapi.NewMessage(chat_id, "")
         re_msg.Text = fmt.Sprintf("Unknown Queryback command: %s", cmd)
@@ -184,7 +215,6 @@ func ProcessUpdateMessageChat(bot *tgbotapi.BotAPI, update *tgbotapi.Update, ch 
         }
     }
 
-
     updateSession(input, &currentSession)
 
     if currentSession.State != DONE {
@@ -204,7 +234,7 @@ func ProcessUpdateMessageChat(bot *tgbotapi.BotAPI, update *tgbotapi.Update, ch 
 
     b, err := msgpack.Marshal(&currentSession)
     fmt.Println(err)
-    if err != nil {
+    if err == nil {
         commandtag, err := db.SetSession(chat_id, u_id, b)
         fmt.Println(commandtag)
         if err != nil {

@@ -140,14 +140,11 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 			    chat_id := int64(update.CallbackQuery.From.ID)
 			    u_id := update.CallbackQuery.From.ID
                 cmd := callbackcmd[0]
-                if cmd =="SETLANG" {
+                if cmd =="SETLANG" || cmd =="SUBMIT" || cmd =="CANCEL" {
 				    resultmsg := ProcessUpdateCmdMessage(bot, cmd, callbackcmd[1], ch, db,  u_id , chat_id )
 
                     fmt.Println(resultmsg)
-
-                    //resultmsg := ProcessUpdateMessageChat(bot, &update, ch, db,  u_id , chat_id )
-                    //re_msg := tgbotapi.NewMessage(int64(update.CallbackQuery.From.ID), fmt.Sprintf("Set lang %s", callbackcmd[1]))
-				    //bot.Send(re_msg)
+			        bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
                 }
             } else {
 			    callbackdata := strings.Split(update.CallbackQuery.Data, ",")

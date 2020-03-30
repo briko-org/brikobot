@@ -55,3 +55,8 @@ func (db *Db) GetSession(chat_id int64, u_id int) ([]byte, error) {
 	return data, nil
 }
 
+
+func (db *Db) DelSession(chat_id int64, u_id int) (pgconn.CommandTag, error) {
+	r, err := db.pool.Exec(context.Background(), `DELETE FROM session where chat_id=$1 and u_id=$2;`, chat_id, u_id)
+	return r, err
+}
