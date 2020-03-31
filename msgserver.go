@@ -210,26 +210,6 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 		}
 	}
 }
-func readTranslateOutputMessageChannel(c chan OutputMessage , bot *tgbotapi.BotAPI, db *database.Db) {
-	for {
-		outputmsg := <-c
-        lang_content := fmt.Sprintf("[%s]%s %s", outputmsg.Lang, outputmsg.Text, outputmsg.SourceURL)
-	    for key, value := range outputmsg.Translation {
-	        if len(lang_content) > 0 {
-                lang_content = lang_content + fmt.Sprintf("\n[%s]%s", key, value)
-	        } else {
-                lang_content = lang_content + fmt.Sprintf("[%s]%s", key, value)
-	        }
-	        //[EN][CN][JP]:
-	        //lang_list_str = lang_list_str + fmt.Sprintf("[%s]", key)
-        }
-        fmt.Println("==================")
-        fmt.Println(fmt.Sprintf("Sent to %s\n",outputmsg.Chat_id))
-        fmt.Println(fmt.Sprintf("%s\n%s",lang_content, ""))
-        msg := tgbotapi.NewMessage(outputmsg.Chat_id, fmt.Sprintf("%s\n%s",lang_content, ""))
-		bot.Send(msg)
-	}
-}
 
 func readTranslateChannel(c chan session.State, bot *tgbotapi.BotAPI, db *database.Db) {
 	for {

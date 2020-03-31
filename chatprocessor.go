@@ -89,6 +89,60 @@ func makeReplyKeyboard(lang_list []string, submit bool) tgbotapi.InlineKeyboardM
 }
 
 
+func makePublishKeyboard(lang_list []string) tgbotapi.InlineKeyboardMarkup {
+	var keyboard [][]tgbotapi.InlineKeyboardButton
+
+	var row []tgbotapi.InlineKeyboardButton
+	for _, value := range lang_list {
+	    button := tgbotapi.NewInlineKeyboardButtonData(value, "EDITLANG_"+value)
+	    row = append(row, button)
+	}
+	keyboard = append(keyboard, row)
+
+	var publishrow []tgbotapi.InlineKeyboardButton
+	button := tgbotapi.NewInlineKeyboardButtonData("OK, PUBLISH!", "PUBLISH_MSG")
+	publishrow = append(publishrow, button)
+	button = tgbotapi.NewInlineKeyboardButtonData("No, Delete it.", "CANCEL_MSG")
+	publishrow = append(publishrow, button)
+	keyboard = append(keyboard, publishrow)
+
+	return tgbotapi.InlineKeyboardMarkup{
+		InlineKeyboard: keyboard,
+	}
+
+}
+
+func readTranslateOutputMessageChannel(c chan OutputMessage , bot *tgbotapi.BotAPI, db *database.Db) {
+	for {
+		outputmsg := <-c
+        lang_content := fmt.Sprintf("[%s]%s %s", outputmsg.Lang, outputmsg.Text, outputmsg.SourceURL)
+
+	    lang_list := []string{}
+	    for key, value := range outputmsg.Translation {
+			lang_list = append(lang_list, key)
+	        if len(lang_content) > 0 {
+                lang_content = lang_content + fmt.Sprintf("\n\n[%s]%s", key, value)
+	        } else {
+                lang_content = lang_content + fmt.Sprintf("[%s]%s", key, value)
+	        }
+        }
+
+		msg := tgbotapi.MessageConfig{
+			BaseChat: tgbotapi.BaseChat{
+				ChatID: outputmsg.Chat_id,
+				ReplyToMessageID: 0,
+			},
+			Text: fmt.Sprintf("%s\n%s",lang_content, ""),
+			//ParseMode: "Markdown",
+			DisableWebPagePreview: false,
+		}
+		msg.ReplyMarkup = makePublishKeyboard(lang_list)
+		bot.Send(msg)
+	}
+}
+
+
+
 func (inmsg *InputMessage) verifyData(chat_id int64) (bool, tgbotapi.MessageConfig) {
     lang_list := []string {"zh", "en", "fr", "jp"}
     if inmsg.Text == ""{
@@ -203,13 +257,24 @@ func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch 
 	        bot.Send(responsemsg)
         }
     } else if cmd =="SUBMIT"{
-
-        fmt.Println("=======SUBMIT:")
-        fmt.Println(BRIKO_API)
-        //requestBriko(APIURL string, lang_list []string, lang_correlation map[string]string, msgId int,inmsg InputMessage, ch chan OutputMessage)
-        //var ch chan OutputMessage = make(chan OutputMessage)
-        go requestBriko(BRIKO_API, REQUEST_LANG_LIST , LANG_CORRELATION, message_id, chat_id, currentSession.Input, ch)
-        //call api
+        if currentSession.State== DATA_OK {
+            currentSession.State = SEND_TO_API
+            go requestBriko(BRIKO_API, REQUEST_LANG_LIST , LANG_CORRELATION, message_id, chat_id, currentSession.Input, ch)
+            b, err := msgpack.Marshal(&currentSession)
+            if err != nil {
+                fmt.Println(err)
+            } else {
+                _, err := db.SetSession(chat_id, u_id, b)
+                if err != nil {
+                    fmt.Println(err)
+                }
+                responsemsg := tgbotapi.NewMessage(chat_id, "Waiting for BRIKO AI translate.")
+	            bot.Send(responsemsg)
+            }
+        } else {
+                responsemsg := tgbotapi.NewMessage(chat_id, "Still Waiting for BRIKO AI translate. ")
+	            bot.Send(responsemsg)
+        }
     } else if cmd =="CANCEL"{
         _, err := db.DelSession(chat_id, u_id)
         if err == nil {
