@@ -121,9 +121,11 @@ func publishToChat(from_id int, chat_id int64, text string, lang_list []string, 
 
 
 func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
-	//var ch chan string = make(chan string)
 	var ch chan session.State = make(chan session.State)
 	go readTranslateChannel(ch, bot, db)
+
+    var choutput chan OutputMessage = make(chan OutputMessage)
+    go readTranslateOutputMessageChannel(choutput, bot, db)
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
@@ -141,7 +143,7 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 			    u_id := update.CallbackQuery.From.ID
                 cmd := callbackcmd[0]
                 if cmd =="SETLANG" || cmd =="SUBMIT" || cmd =="CANCEL" {
-				    resultmsg := ProcessUpdateCmdMessage(bot, cmd, callbackcmd[1], ch, db,  u_id , chat_id )
+				    resultmsg := ProcessUpdateCmdMessage(bot, cmd, callbackcmd[1], choutput, db, update.CallbackQuery.Message.MessageID, u_id , chat_id )
 
                     fmt.Println(resultmsg)
 			        bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
@@ -206,6 +208,26 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 				//bot.Send(msg)
 			}
 		}
+	}
+}
+func readTranslateOutputMessageChannel(c chan OutputMessage , bot *tgbotapi.BotAPI, db *database.Db) {
+	for {
+		outputmsg := <-c
+        lang_content := fmt.Sprintf("[%s]%s %s", outputmsg.Lang, outputmsg.Text, outputmsg.SourceURL)
+	    for key, value := range outputmsg.Translation {
+	        if len(lang_content) > 0 {
+                lang_content = lang_content + fmt.Sprintf("\n[%s]%s", key, value)
+	        } else {
+                lang_content = lang_content + fmt.Sprintf("[%s]%s", key, value)
+	        }
+	        //[EN][CN][JP]:
+	        //lang_list_str = lang_list_str + fmt.Sprintf("[%s]", key)
+        }
+        fmt.Println("==================")
+        fmt.Println(fmt.Sprintf("Sent to %s\n",outputmsg.Chat_id))
+        fmt.Println(fmt.Sprintf("%s\n%s",lang_content, ""))
+        msg := tgbotapi.NewMessage(outputmsg.Chat_id, fmt.Sprintf("%s\n%s",lang_content, ""))
+		bot.Send(msg)
 	}
 }
 

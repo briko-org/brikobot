@@ -5,7 +5,12 @@ import (
 	"github.com/virushuo/brikobot/session"
 	"github.com/virushuo/brikobot/util"
     "github.com/google/uuid"
+	"encoding/json"
+	"io/ioutil"
+	"net/http"
+	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 	//"regexp"
 	"github.com/virushuo/brikobot/database"
@@ -26,11 +31,13 @@ type InputMessage struct {
 }
 
 type OutputMessage struct{
+    Chat_id int64
 	Text    string
 	Lang    string
 	SourceURL string
-    Translation []string
-    LangList    []string
+    Translation map[string]string
+    //Translation []string
+    //LangList    []string
 }
 
 
@@ -39,6 +46,22 @@ type Session struct {
     State int
     Input InputMessage
     Output OutputMessage
+}
+
+type requestMsg struct {
+	MsgType       string   `json:"msgType"`
+	MsgID         string   `json:"msgID"`
+	SourceLang    string   `json:"sourceLang"`
+	RequestLang   []string `json:"requestLang"`
+	SourceContent string   `json:"sourceContent"`
+}
+
+type responseMsg struct {
+	MsgFlag            string            `json:"msgFlag"`
+	MsgID              string            `json:"msgID"`
+	MsgIDRespondTo     string            `json:"msgIDRespondTo"`
+	MsgType            string            `json:"msgType"`
+	TranslationResults map[string]string `json:"translationResults"`
 }
 
 func makeReplyKeyboard(lang_list []string, submit bool) tgbotapi.InlineKeyboardMarkup {
@@ -141,7 +164,10 @@ func inputlangVerify(lang string) bool{
     return result
 }
 
-func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch chan session.State, db *database.Db,  u_id int, chat_id int64) string{
+func ProcessTranslationResult(outputmsg *OutputMessage){
+}
+
+func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch chan OutputMessage, db *database.Db, message_id int, u_id int, chat_id int64) string{
     var currentSession Session
 	data, err := db.GetSession(chat_id, u_id)
     if len(data) == 0 {
@@ -177,6 +203,12 @@ func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch 
 	        bot.Send(responsemsg)
         }
     } else if cmd =="SUBMIT"{
+
+        fmt.Println("=======SUBMIT:")
+        fmt.Println(BRIKO_API)
+        //requestBriko(APIURL string, lang_list []string, lang_correlation map[string]string, msgId int,inmsg InputMessage, ch chan OutputMessage)
+        //var ch chan OutputMessage = make(chan OutputMessage)
+        go requestBriko(BRIKO_API, REQUEST_LANG_LIST , LANG_CORRELATION, message_id, chat_id, currentSession.Input, ch)
         //call api
     } else if cmd =="CANCEL"{
         _, err := db.DelSession(chat_id, u_id)
@@ -246,3 +278,121 @@ func ProcessUpdateMessageChat(bot *tgbotapi.BotAPI, update *tgbotapi.Update, ch 
 
     return "ProcessUpdateMessageChat end"
 }
+
+func requestBriko(APIURL string, lang_list []string, lang_correlation map[string]string, msgId int,chat_id int64, inmsg InputMessage, ch chan OutputMessage) {
+	data := &requestMsg{
+		MsgType:    "Translation",
+		MsgID:      strconv.Itoa(msgId),
+		SourceLang: inmsg.Lang,
+	}
+
+    if lang_correlation[data.SourceLang] !=""{
+        data.SourceLang = lang_correlation[data.SourceLang]
+    }
+
+	requestLang := []string{}
+	for _, value := range lang_list {
+		if value != data.SourceLang {
+			requestLang = append(requestLang, value)
+		}
+	}
+    data.SourceContent = inmsg.Text
+
+	data.RequestLang = requestLang
+	output, _ := json.Marshal(data)
+    fmt.Println(string(output))
+	resp, _ := http.Post(APIURL, "application/json", bytes.NewBuffer(output))
+    bodyBytes, err1 := ioutil.ReadAll(resp.Body)
+    if err1 != nil {
+        fmt.Println(err1)
+        //TODO: send the error msg to bot
+    }
+    bodyString := string(bodyBytes)
+    d := json.NewDecoder(strings.NewReader(bodyString))
+	rmsg := &responseMsg{}
+	err := d.Decode(rmsg)
+
+	if err != nil {
+	} else {
+	    if rmsg.MsgFlag == "success" {
+	        output := &OutputMessage{
+                Chat_id: chat_id,
+                Text:    inmsg.Text,
+                Lang:    inmsg.Lang,
+                SourceURL: inmsg.SourceURL,
+                Translation: rmsg.TranslationResults,
+	        }
+            ch <- *output
+            //type OutputMessage struct{
+            //    Text    string
+            //    Lang    string
+            //    SourceURL string
+            //    Translation []string
+            //    LangList    []string
+            //}
+
+            //lang_content := fmt.Sprintf("[%s] %s %s", data.SourceLang, data.SourceContent, SourceURL)
+	    	//lang_list_str := fmt.Sprintf("[%s]", data.SourceLang)
+	    	//translation := rmsg.TranslationResults
+	    	//for key, value := range translation {
+	    	//	lang_content = lang_content + fmt.Sprintf("\n\n[%s] %s", key, value)
+	    	//	lang_list_str = lang_list_str + fmt.Sprintf("[%s]", key)
+	    	//}
+	    	//ch <- State{"TRANSLATE", fmt.Sprintf("%s:%s", lang_list_str, lang_content), stat.U_id, stat.Chat_id}
+	    } else {
+            fmt.Println(rmsg.MsgFlag) //TODO: send the error msg to bot
+	    }
+    }
+    //fmt.Println(err)
+    //fmt.Println(rmsg)
+	//regex := *regexp.MustCompile(`\[([A-Za-z]{2})\]`)
+	//res := regex.FindStringSubmatch(stat.Text)
+	//if len(res) > 1 {
+	//	data.SourceLang = strings.ToLower(res[1])
+
+
+    //    split_list := strings.Split(stat.Text, " ")
+    //    last_str := split_list[len(split_list)-1]
+    //    validURL := util.IsURL(last_str)
+    //    end_pos := len(last_str)-1
+    //    if validURL == true {
+    //        end_pos = len(stat.Text) - len(last_str)
+    //    }
+
+
+
+
+    //    bodyBytes, err1 := ioutil.ReadAll(resp.Body)
+    //    if err1 != nil {
+    //        fmt.Println(err1)
+    //        //TODO: send the error msg to bot
+    //    }
+    //    bodyString := string(bodyBytes)
+    //    fmt.Println("======bodyString")
+    //    fmt.Println(bodyString)
+    //    fmt.Println(err1)
+    //    d := json.NewDecoder(strings.NewReader(bodyString))
+	//	rmsg := &responseMsg{}
+	//	err := d.Decode(rmsg)
+	//	if err != nil {
+    //        fmt.Println("===responseMsg:");
+	//		fmt.Println(err) //TODO: send the error msg to bot
+	//	} else {
+	//		if rmsg.MsgFlag == "success" {
+    //            lang_content := fmt.Sprintf("[%s] %s %s", data.SourceLang, data.SourceContent, SourceURL)
+	//			lang_list_str := fmt.Sprintf("[%s]", data.SourceLang)
+	//			translation := rmsg.TranslationResults
+	//			for key, value := range translation {
+	//				lang_content = lang_content + fmt.Sprintf("\n\n[%s] %s", key, value)
+	//				lang_list_str = lang_list_str + fmt.Sprintf("[%s]", key)
+	//			}
+	//			ch <- State{"TRANSLATE", fmt.Sprintf("%s:%s", lang_list_str, lang_content), stat.U_id, stat.Chat_id}
+	//		} else {
+	//			fmt.Println(rmsg.MsgFlag) //TODO: send the error msg to bot
+	//		}
+	//	}
+	//} else {
+	//	fmt.Println("no language tag")
+	//}
+}
+
