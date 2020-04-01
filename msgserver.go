@@ -32,8 +32,7 @@ var (
 
 func makeRankingKeyboard(lang_list []string) tgbotapi.InlineKeyboardMarkup {
 	var keyboard [][]tgbotapi.InlineKeyboardButton
-	for idx, value := range lang_list {
-		if idx > 0 {
+	for _, value := range lang_list {
 			var row []tgbotapi.InlineKeyboardButton
 			for i := 0; i < 5; i++ {
 				label := strconv.Itoa(i + 1)
@@ -44,7 +43,6 @@ func makeRankingKeyboard(lang_list []string) tgbotapi.InlineKeyboardMarkup {
 				row = append(row, button)
 			}
 			keyboard = append(keyboard, row)
-		}
 	}
 	return tgbotapi.InlineKeyboardMarkup{
 		InlineKeyboard: keyboard,
@@ -142,7 +140,9 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 			    chat_id := int64(update.CallbackQuery.From.ID)
 			    u_id := update.CallbackQuery.From.ID
                 cmd := callbackcmd[0]
-                if cmd =="SETLANG" || cmd =="SUBMIT" || cmd =="CANCEL" {
+                fmt.Println("==========Query:")
+                fmt.Println(update.CallbackQuery.Data)
+                if cmd =="SETLANG" || cmd =="SUBMIT" || cmd =="CANCEL" || cmd == "EDIT" || cmd == "PUBLISH"{
 				    resultmsg := ProcessUpdateCmdMessage(bot, cmd, callbackcmd[1], choutput, db, update.CallbackQuery.Message.MessageID, u_id , chat_id )
 
                     fmt.Println(resultmsg)

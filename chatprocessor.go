@@ -21,6 +21,8 @@ const (
         NEED_DATA_INPUT  = 1 << iota
         DATA_OK  = 1 << iota
         SEND_TO_API = 1 << iota
+        TRANSLATE_OK  = 1 << iota
+        EDIT = 1 << iota
         DONE = 1 << iota
 )
 
@@ -32,6 +34,7 @@ type InputMessage struct {
 
 type OutputMessage struct{
     Chat_id int64
+    U_id int
 	Text    string
 	Lang    string
 	SourceURL string
@@ -44,6 +47,7 @@ type OutputMessage struct{
 type Session struct {
     Id uuid.UUID
     State int
+    StateData string
     Input InputMessage
     Output OutputMessage
 }
@@ -94,7 +98,7 @@ func makePublishKeyboard(lang_list []string) tgbotapi.InlineKeyboardMarkup {
 
 	var row []tgbotapi.InlineKeyboardButton
 	for _, value := range lang_list {
-	    button := tgbotapi.NewInlineKeyboardButtonData(value, "EDITLANG_"+value)
+        button := tgbotapi.NewInlineKeyboardButtonData("Edit "+value, "EDIT_"+value)
 	    row = append(row, button)
 	}
 	keyboard = append(keyboard, row)
@@ -127,17 +131,31 @@ func readTranslateOutputMessageChannel(c chan OutputMessage , bot *tgbotapi.BotA
 	        }
         }
 
-		msg := tgbotapi.MessageConfig{
-			BaseChat: tgbotapi.BaseChat{
-				ChatID: outputmsg.Chat_id,
-				ReplyToMessageID: 0,
-			},
-			Text: fmt.Sprintf("%s\n%s",lang_content, ""),
-			//ParseMode: "Markdown",
-			DisableWebPagePreview: false,
-		}
-		msg.ReplyMarkup = makePublishKeyboard(lang_list)
-		bot.Send(msg)
+        currentSession := loadSession(outputmsg.U_id, outputmsg.Chat_id, db)
+        currentSession.Output = outputmsg
+        currentSession.State = TRANSLATE_OK
+        currentSession.StateData = ""
+
+        b, err := msgpack.Marshal(&currentSession)
+        if err != nil {
+            fmt.Println(err)
+        } else {
+            _, err := db.SetSession(outputmsg.Chat_id, outputmsg.U_id, b)
+            if err != nil {
+                fmt.Println(err)
+            }
+		    msg := tgbotapi.MessageConfig{
+			    BaseChat: tgbotapi.BaseChat{
+			        ChatID: outputmsg.Chat_id,
+			        ReplyToMessageID: 0,
+			    },
+			    Text: fmt.Sprintf("%s\n%s",lang_content, ""),
+			    //ParseMode: "Markdown",
+			    DisableWebPagePreview: false,
+		    }
+		    msg.ReplyMarkup = makePublishKeyboard(lang_list)
+		    bot.Send(msg)
+        }
 	}
 }
 
@@ -221,6 +239,27 @@ func inputlangVerify(lang string) bool{
 func ProcessTranslationResult(outputmsg *OutputMessage){
 }
 
+func loadSession(u_id int, chat_id int64, db *database.Db) Session{
+    var currentSession Session
+	data, err := db.GetSession(chat_id, u_id)
+    if len(data) == 0 {
+        currentSession = Session {
+            Id: uuid.New(),
+            State: NEED_DATA_INPUT,
+            Input: InputMessage {},
+            Output: OutputMessage {},
+        }
+    } else {
+        if err == nil {
+	        err = msgpack.Unmarshal(data, &currentSession)
+        } else {
+            fmt.Println(err)
+        }
+    }
+    return currentSession
+
+}
+
 func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch chan OutputMessage, db *database.Db, message_id int, u_id int, chat_id int64) string{
     var currentSession Session
 	data, err := db.GetSession(chat_id, u_id)
@@ -256,10 +295,28 @@ func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch 
             }
 	        bot.Send(responsemsg)
         }
+    } else if cmd =="EDIT"{
+        currentSession.State = EDIT
+        currentSession.StateData = query
+        b, err := msgpack.Marshal(&currentSession)
+        if err != nil {
+            fmt.Println(err)
+        } else {
+            _, err := db.SetSession(chat_id, u_id, b)
+            if err != nil {
+                fmt.Println(err)
+            }
+            if currentSession.Output.Translation[currentSession.StateData] != ""{
+                responsemsg := tgbotapi.NewMessage(chat_id, currentSession.Output.Translation[currentSession.StateData])
+	            bot.Send(responsemsg)
+                responsemsg = tgbotapi.NewMessage(chat_id, fmt.Sprintf("Edit [%s], Please input your translation:", currentSession.StateData))
+	            bot.Send(responsemsg)
+            }
+        }
     } else if cmd =="SUBMIT"{
         if currentSession.State== DATA_OK {
             currentSession.State = SEND_TO_API
-            go requestBriko(BRIKO_API, REQUEST_LANG_LIST , LANG_CORRELATION, message_id, chat_id, currentSession.Input, ch)
+            go requestBriko(BRIKO_API, REQUEST_LANG_LIST , LANG_CORRELATION, message_id, chat_id, u_id, currentSession.Input, ch)
             b, err := msgpack.Marshal(&currentSession)
             if err != nil {
                 fmt.Println(err)
@@ -284,6 +341,19 @@ func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch 
             fmt.Println(err)
         }
         //delete session 
+    } else if cmd =="PUBLISH"{
+        lang_content := fmt.Sprintf("[%s]%s %s", currentSession.Output.Lang, currentSession.Output.Text, currentSession.Output.SourceURL)
+	    lang_list := []string{}
+	    for key, value := range currentSession.Output.Translation {
+            lang_list = append(lang_list, key)
+	        if len(lang_content) > 0 {
+                lang_content = lang_content + fmt.Sprintf("\n\n[%s]%s", key, value)
+	        } else {
+                lang_content = lang_content + fmt.Sprintf("[%s]%s", key, value)
+	        }
+        }
+
+        publishToChat(u_id, CHANNEL_CHAT_ID, lang_content, lang_list, bot, db)
     } else {
         re_msg := tgbotapi.NewMessage(chat_id, "")
         re_msg.Text = fmt.Sprintf("Unknown Queryback command: %s", cmd)
@@ -294,6 +364,8 @@ func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch 
 
 func ProcessUpdateMessageChat(bot *tgbotapi.BotAPI, update *tgbotapi.Update, ch chan session.State, db *database.Db,  u_id int, chat_id int64) string{
     input := update.Message.Text
+    fmt.Println("======input:")
+    fmt.Println(input)
 
     var currentSession Session
 	data, err := db.GetSession(chat_id, u_id)
@@ -312,17 +384,47 @@ func ProcessUpdateMessageChat(bot *tgbotapi.BotAPI, update *tgbotapi.Update, ch 
         }
     }
 
-    updateSession(input, &currentSession)
 
+    fmt.Println("========currentSession")
+    fmt.Println(currentSession)
     if currentSession.State != DONE {
 		switch currentSession.State  {
             case NEED_DATA_INPUT:
-                r, responsemsg :=currentSession.Input.verifyData(chat_id)
+                updateSession(input, &currentSession)
+                r, responsemsg := currentSession.Input.verifyData(chat_id)
                 if r == true {
                     currentSession.State = DATA_OK
 				    //bot.Send(responsemsg)
                 }
 				bot.Send(responsemsg)
+            case EDIT:
+                lang := currentSession.StateData
+                if lang !="" {
+                    currentSession.Output.Translation[lang] = input
+
+                    lang_content := fmt.Sprintf("[%s]%s %s", currentSession.Output.Lang, currentSession.Output.Text, currentSession.Output.SourceURL)
+	                lang_list := []string{}
+	                for key, value := range currentSession.Output.Translation {
+                        lang_list = append(lang_list, key)
+	                    if len(lang_content) > 0 {
+                            lang_content = lang_content + fmt.Sprintf("\n\n[%s]%s", key, value)
+	                    } else {
+                            lang_content = lang_content + fmt.Sprintf("[%s]%s", key, value)
+	                    }
+                    }
+
+		            msg := tgbotapi.MessageConfig{
+			            BaseChat: tgbotapi.BaseChat{
+			                ChatID: currentSession.Output.Chat_id,
+			                ReplyToMessageID: 0,
+			            },
+			            Text: fmt.Sprintf("%s\n%s",lang_content, ""),
+			            //ParseMode: "Markdown",
+			            DisableWebPagePreview: false,
+		            }
+		            msg.ReplyMarkup = makePublishKeyboard(lang_list)
+		            bot.Send(msg)
+                }
 
 			default:
                 fmt.Println("unknown state")
@@ -344,7 +446,7 @@ func ProcessUpdateMessageChat(bot *tgbotapi.BotAPI, update *tgbotapi.Update, ch 
     return "ProcessUpdateMessageChat end"
 }
 
-func requestBriko(APIURL string, lang_list []string, lang_correlation map[string]string, msgId int,chat_id int64, inmsg InputMessage, ch chan OutputMessage) {
+func requestBriko(APIURL string, lang_list []string, lang_correlation map[string]string, msgId int,chat_id int64, u_id int, inmsg InputMessage, ch chan OutputMessage) {
 	data := &requestMsg{
 		MsgType:    "Translation",
 		MsgID:      strconv.Itoa(msgId),
@@ -382,28 +484,13 @@ func requestBriko(APIURL string, lang_list []string, lang_correlation map[string
 	    if rmsg.MsgFlag == "success" {
 	        output := &OutputMessage{
                 Chat_id: chat_id,
+                U_id: u_id,
                 Text:    inmsg.Text,
                 Lang:    inmsg.Lang,
                 SourceURL: inmsg.SourceURL,
                 Translation: rmsg.TranslationResults,
 	        }
             ch <- *output
-            //type OutputMessage struct{
-            //    Text    string
-            //    Lang    string
-            //    SourceURL string
-            //    Translation []string
-            //    LangList    []string
-            //}
-
-            //lang_content := fmt.Sprintf("[%s] %s %s", data.SourceLang, data.SourceContent, SourceURL)
-	    	//lang_list_str := fmt.Sprintf("[%s]", data.SourceLang)
-	    	//translation := rmsg.TranslationResults
-	    	//for key, value := range translation {
-	    	//	lang_content = lang_content + fmt.Sprintf("\n\n[%s] %s", key, value)
-	    	//	lang_list_str = lang_list_str + fmt.Sprintf("[%s]", key)
-	    	//}
-	    	//ch <- State{"TRANSLATE", fmt.Sprintf("%s:%s", lang_list_str, lang_content), stat.U_id, stat.Chat_id}
 	    } else {
             fmt.Println(rmsg.MsgFlag) //TODO: send the error msg to bot
 	    }
