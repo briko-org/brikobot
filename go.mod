@@ -12,5 +12,6 @@ require (
 	github.com/technoweenie/multipartstreamer v1.0.1 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.11 // indirect
 	golang.org/x/crypto v0.0.0-20200221231518-2aa609cf4a9d // indirect
+	golang.org/x/net v0.0.0-20200301022130-244492dfa37a
 	golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543 // indirect
 )

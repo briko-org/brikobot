@@ -14,6 +14,8 @@ COPY database .
 COPY util .
 COPY session .
 COPY msgserver.go .
+COPY cmdprocessor.go .
+COPY chatprocessor.go .
 
 RUN go mod download
 
@@ -21,7 +23,7 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN go build -o main msgserver.go
+RUN go build -o main msgserver.go cmdprocessor.go chatprocessor.go
 
 # Move to /dist directory as the place for resulting binary folder
 WORKDIR /dist

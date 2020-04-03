@@ -88,33 +88,43 @@ func loadwhitelist() {
 	}
 }
 
-func publishToChat(from_id int, chat_id int64, text string, lang_list []string, bot *tgbotapi.BotAPI, db *database.Db) {
+func publishToChat(from_id int, chat_id int64, text string, lang_list []string, bot *tgbotapi.BotAPI, db *database.Db) bool {
+    allow_publish := false
 	for _, value := range WHITELIST_ID_INT {
-		if from_id == value {
-			//msg := tgbotapi.NewMessage(chat_id, text)
-			msg := tgbotapi.MessageConfig{
-				BaseChat: tgbotapi.BaseChat{
-					ChatID: chat_id,
-					ReplyToMessageID: 0,
-				},
-				Text: text,
-				//ParseMode: "Markdown",
-				DisableWebPagePreview: false,
-			}
-
-			newkeyboard := makeRankingKeyboard(lang_list)
-			msg.ReplyMarkup = newkeyboard
-			sentmsg, err := bot.Send(msg)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			}
-			commandtag, err := db.AddMessage(sentmsg.Chat.ID, sentmsg.MessageID, from_id, text)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "error: %v\n", err)
-				fmt.Fprintf(os.Stderr, "commandtag: %v\n", commandtag)
-			}
-		}
+	    if from_id == value {
+            allow_publish = true
+        }
 	}
+	if allow_publish == true  {
+		//msg := tgbotapi.NewMessage(chat_id, text)
+		msg := tgbotapi.MessageConfig{
+			BaseChat: tgbotapi.BaseChat{
+				ChatID: chat_id,
+				ReplyToMessageID: 0,
+			},
+			Text: text,
+			//ParseMode: "Markdown",
+			DisableWebPagePreview: false,
+		}
+
+		newkeyboard := makeRankingKeyboard(lang_list)
+		msg.ReplyMarkup = newkeyboard
+		sentmsg, err := bot.Send(msg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		}
+		commandtag, err := db.AddMessage(sentmsg.Chat.ID, sentmsg.MessageID, from_id, text)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			fmt.Fprintf(os.Stderr, "commandtag: %v\n", commandtag)
+            return false
+		}else {
+            return true
+        }
+	}else {
+        fmt.Println("userid not in the whitelist %v %v", from_id, chat_id)
+        return false
+    }
 }
 
 
@@ -143,9 +153,7 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
                 fmt.Println("==========Query:")
                 fmt.Println(update.CallbackQuery.Data)
                 if cmd =="SETLANG" || cmd =="SUBMIT" || cmd =="CANCEL" || cmd == "EDIT" || cmd == "PUBLISH"{
-				    resultmsg := ProcessUpdateCmdMessage(bot, cmd, callbackcmd[1], choutput, db, update.CallbackQuery.Message.MessageID, u_id , chat_id )
-
-                    fmt.Println(resultmsg)
+				    _ = ProcessUpdateCmdMessage(bot, cmd, callbackcmd[1], choutput, db, update.CallbackQuery.Message.MessageID, u_id , chat_id )
 			        bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
                 }
             } else {
@@ -185,27 +193,23 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
                 msgtext = HELP_TEXT
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
 				bot.Send(msg)
-			//case 47: //start with "/"
-            //    msgtext = ProcessUpdateMessageWithSlash(bot, &update, ch, db,  u_id , chat_id )
-            //    if msgtext !=""{
-			//	    msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
-			//	    bot.Send(msg)
-            //    }
+			case 47: //start with "/"
+                msgtext := "unknown command. send ? or /help for help."
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
+                if update.Message.Text =="/help" || update.Message.Text =="/start"{
+                    msgtext = HELP_TEXT
+				    msg = tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
+                }
+                bot.Send(msg)
+                //msgtext = ProcessUpdateMessageWithSlash(bot, &update, ch, db,  u_id , chat_id )
+                //if msgtext !=""{
+				//    msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
+				//    bot.Send(msg)
+                //}
 			default:
                 resultmsg := ProcessUpdateMessageChat(bot, &update, ch, db,  u_id , chat_id )
                 fmt.Println("===resultmsg====")
                 fmt.Println(resultmsg)
-
-                //msgtext = "unknown command"
-				//if err != nil && err.Error() == "no rows in result set" {
-				//	msgtext = "Current state is nil, send /help for help, send /new to start"
-				//} else if err != nil {
-				//	msgtext = "Error: " + err.Error()
-				//} else {
-				//	msgtext = fmt.Sprintf("Show current state:\nState: %s\nText: %s", n, t)
-				//}
-				//msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
-				//bot.Send(msg)
 			}
 		}
 	}

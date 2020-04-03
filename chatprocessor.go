@@ -342,7 +342,7 @@ func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch 
         }
         //delete session 
     } else if cmd =="PUBLISH"{
-        lang_content := fmt.Sprintf("[%s]%s %s", currentSession.Output.Lang, currentSession.Output.Text, currentSession.Output.SourceURL)
+        lang_content := fmt.Sprintf("[%s]%s", currentSession.Output.Lang, currentSession.Output.Text)
 	    lang_list := []string{}
 	    for key, value := range currentSession.Output.Translation {
             lang_list = append(lang_list, key)
@@ -352,8 +352,17 @@ func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch 
                 lang_content = lang_content + fmt.Sprintf("[%s]%s", key, value)
 	        }
         }
-
-        publishToChat(u_id, CHANNEL_CHAT_ID, lang_content, lang_list, bot, db)
+        lang_content = lang_content + fmt.Sprintf("\n%s", currentSession.Output.SourceURL)
+        publishresult := publishToChat(u_id, CHANNEL_CHAT_ID, lang_content, lang_list, bot, db)
+        if publishresult ==true {
+            _, err := db.DelSession(chat_id, u_id)
+            if err == nil {
+                responsemsg := tgbotapi.NewMessage(chat_id, "Publish successed. You can input new text to translate.")
+	            bot.Send(responsemsg)
+            } else {
+                fmt.Println(err)
+            }
+        }
     } else {
         re_msg := tgbotapi.NewMessage(chat_id, "")
         re_msg.Text = fmt.Sprintf("Unknown Queryback command: %s", cmd)
@@ -364,8 +373,6 @@ func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch 
 
 func ProcessUpdateMessageChat(bot *tgbotapi.BotAPI, update *tgbotapi.Update, ch chan session.State, db *database.Db,  u_id int, chat_id int64) string{
     input := update.Message.Text
-    fmt.Println("======input:")
-    fmt.Println(input)
 
     var currentSession Session
 	data, err := db.GetSession(chat_id, u_id)
@@ -385,8 +392,6 @@ func ProcessUpdateMessageChat(bot *tgbotapi.BotAPI, update *tgbotapi.Update, ch 
     }
 
 
-    fmt.Println("========currentSession")
-    fmt.Println(currentSession)
     if currentSession.State != DONE {
 		switch currentSession.State  {
             case NEED_DATA_INPUT:
@@ -467,7 +472,6 @@ func requestBriko(APIURL string, lang_list []string, lang_correlation map[string
 
 	data.RequestLang = requestLang
 	output, _ := json.Marshal(data)
-    fmt.Println(string(output))
 	resp, _ := http.Post(APIURL, "application/json", bytes.NewBuffer(output))
     bodyBytes, err1 := ioutil.ReadAll(resp.Body)
     if err1 != nil {
