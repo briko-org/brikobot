@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
+	"github.com/abadojack/whatlanggo"
 	"github.com/spf13/viper"
 	"github.com/virushuo/brikobot/database"
 	"github.com/virushuo/brikobot/session"
@@ -28,6 +29,7 @@ var (
     MIN_INPUT_LENGTH int
     BRIKO_API   string
     REQUEST_LANG_LIST []string
+    SUPPORT_LANG_LIST []string
     HELP_TEXT string
     LANG_CORRELATION map[string]string
 )
@@ -63,6 +65,7 @@ func loadconf() {
 	MIN_INPUT_LENGTH = viper.GetInt("MIN_INPUT_LENGTH")
     BRIKO_API = viper.GetString("BRIKO_API")
 	REQUEST_LANG_LIST = viper.GetStringSlice("REQUEST_LANG_LIST")
+    SUPPORT_LANG_LIST = viper.GetStringSlice("SUPPORT_LANG_LIST")
     HELP_TEXT = viper.GetString("HELP_TEXT")
     LANG_CORRELATION = viper.GetStringMapString("LANG_CORRELATION")
 }
@@ -205,6 +208,7 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
                     msgtext = HELP_TEXT
 				    msg = tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
                 } else if update.Message.Text =="/reset" || update.Message.Text =="/del" {
+                    db.DelSession(chat_id, u_id)
                     msgtext = "Cleared, please input new content or url."
 				    msg = tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
                 }
@@ -251,7 +255,23 @@ func readSpiderChannel(c chan spider.SpiderResponse, bot *tgbotapi.BotAPI, db *d
         if spidermsg.Content !=""{
             currentSession := loadSession(spidermsg.U_id, spidermsg.Chat_id, db)
             currentSession.Input.Text = spidermsg.Content
-            msg := tgbotapi.NewMessage(spidermsg.Chat_id, fmt.Sprintf("Fetch content from %s\n%s",spidermsg.Url, spidermsg.Content))
+	        lang_info := whatlanggo.Detect(spidermsg.Content)
+            input_lang := lang_info.Lang.Iso6391()
+            if LANG_CORRELATION[input_lang] != "" {
+                input_lang = LANG_CORRELATION[input_lang]
+            }
+
+	        for _, value := range SUPPORT_LANG_LIST{
+                if value == input_lang {
+                    currentSession.Input.Lang = input_lang
+                }
+            }
+
+            msgtext := fmt.Sprintf("Fetch content from %s\n%s",spidermsg.Url, spidermsg.Content)
+            if currentSession.Input.Lang != "" {
+                msgtext += fmt.Sprintf("\nSet Language: %s",currentSession.Input.Lang)
+            }
+            msg := tgbotapi.NewMessage(spidermsg.Chat_id, msgtext)
 		    bot.Send(msg)
             r, responsemsg := currentSession.Input.verifyData(spidermsg.Chat_id)
             if r == true {

@@ -249,16 +249,16 @@ func (session *Session) tryFetchUrl(ch chan spider.SpiderResponse , u_id int, ch
 }
 
 func inputlangVerify(lang string) bool{
-    lang_list := []string {"zh", "en", "fr", "jp"}
-    var LANG_CORRELATION map[string]string 
-    LANG_CORRELATION = make(map[string]string)
-    LANG_CORRELATION["ja"]="jp"
-    LANG_CORRELATION["cn"]="zh"
+    //lang_list := []string {"zh", "en", "fr", "jp"}
+    //var LANG_CORRELATION map[string]string 
+    //LANG_CORRELATION = make(map[string]string)
+    //LANG_CORRELATION["ja"]="jp"
+    //LANG_CORRELATION["cn"]="zh"
     result := false
     if LANG_CORRELATION[lang] != "" {
         lang = LANG_CORRELATION[lang]
     }
-    for _, l := range lang_list {
+    for _, l := range SUPPORT_LANG_LIST {
         if lang == l {
             result = true
         }
@@ -421,7 +421,8 @@ func ProcessUpdateMessageChat(bot *tgbotapi.BotAPI, update *tgbotapi.Update, ch 
         }
     }
 
-
+fmt.Println("=======currentSession")
+fmt.Println(currentSession)
     if currentSession.State != DONE {
 		switch currentSession.State  {
             case NEED_DATA_INPUT:

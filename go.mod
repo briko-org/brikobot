@@ -3,6 +3,7 @@ module github.com/virushuo/brikobot
 go 1.13
 
 require (
+	github.com/abadojack/whatlanggo v1.0.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20200108200545-475eaeb16496
 	github.com/go-telegram-bot-api/telegram-bot-api v4.6.4+incompatible
 	github.com/google/uuid v1.1.1 // indirect
