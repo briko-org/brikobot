@@ -4,6 +4,7 @@ import (
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/virushuo/brikobot/session"
 	"github.com/virushuo/brikobot/util"
+	"github.com/virushuo/brikobot/spider"
     "github.com/google/uuid"
 	"encoding/json"
 	"io/ioutil"
@@ -12,13 +13,14 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	//"regexp"
+	"regexp"
 	"github.com/virushuo/brikobot/database"
     "github.com/vmihailenco/msgpack/v4"
 )
 
 const (
         NEED_DATA_INPUT  = 1 << iota
+        FETCH_URL  = 1 << iota
         DATA_OK  = 1 << iota
         SEND_TO_API = 1 << iota
         TRANSLATE_OK  = 1 << iota
@@ -171,7 +173,7 @@ func (inmsg *InputMessage) verifyData(chat_id int64) (bool, tgbotapi.MessageConf
 				ChatID: chat_id,
 				ReplyToMessageID: 0,
 			},
-			Text: "please select the language",
+			Text: "Please select the original language",
 			//ParseMode: "Markdown",
 			DisableWebPagePreview: false,
 		}
@@ -216,6 +218,34 @@ func updateSession(input string, session *Session){
         //text = strings.TrimSpace(input)
     }
     //return true, ""
+}
+
+func isTwitterUrl(url string) bool{
+	regex := *regexp.MustCompile(`https://twitter.com/[a-zA-Z0-9]+/status/\d+.*`)
+	res := regex.FindIndex([]byte(url))
+    if len(res) >=2 && res[0]==0{
+        return true
+    } else {
+        return false
+    }
+}
+
+func (session *Session) tryFetchUrl(ch chan spider.SpiderResponse , u_id int, chat_id int64) (bool, string){
+    url := session.Input.SourceURL
+
+    if isTwitterUrl(url) == true {
+        //go fetch
+
+	    s:= &spider.SpiderMessage{
+            Chat_id:chat_id,
+            U_id:u_id,
+            URL: url,
+        }
+        go s.FetchTweetContent(ch)
+        return true, "twitter"
+    }else {
+        return false,""
+    }
 }
 
 func inputlangVerify(lang string) bool{
@@ -371,7 +401,7 @@ func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch 
     return "ProcessUpdateCmdMessage"
 }
 
-func ProcessUpdateMessageChat(bot *tgbotapi.BotAPI, update *tgbotapi.Update, ch chan session.State, db *database.Db,  u_id int, chat_id int64) string{
+func ProcessUpdateMessageChat(bot *tgbotapi.BotAPI, update *tgbotapi.Update, ch chan session.State, chspider chan spider.SpiderResponse, db *database.Db,  u_id int, chat_id int64) string{
     input := update.Message.Text
 
     var currentSession Session
@@ -396,12 +426,21 @@ func ProcessUpdateMessageChat(bot *tgbotapi.BotAPI, update *tgbotapi.Update, ch 
 		switch currentSession.State  {
             case NEED_DATA_INPUT:
                 updateSession(input, &currentSession)
-                r, responsemsg := currentSession.Input.verifyData(chat_id)
-                if r == true {
-                    currentSession.State = DATA_OK
-				    //bot.Send(responsemsg)
+                canFetch := false
+                if currentSession.Input.SourceURL!="" && currentSession.Input.Text ==""{
+                    s := ""
+                    canFetch,s = currentSession.tryFetchUrl(chspider, u_id, chat_id)
+				    msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("I'm trying to fetch content from %s",s))
+                    bot.Send(msg)
                 }
-				bot.Send(responsemsg)
+
+                if canFetch == false{
+                    r, responsemsg := currentSession.Input.verifyData(chat_id)
+                    if r == true {
+                        currentSession.State = DATA_OK
+                    }
+				    bot.Send(responsemsg)
+                }
             case EDIT:
                 lang := currentSession.StateData
                 if lang !="" {

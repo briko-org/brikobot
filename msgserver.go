@@ -6,6 +6,8 @@ import (
 	"github.com/spf13/viper"
 	"github.com/virushuo/brikobot/database"
 	"github.com/virushuo/brikobot/session"
+	"github.com/virushuo/brikobot/spider"
+    "github.com/vmihailenco/msgpack/v4"
 	//"github.com/virushuo/brikobot/util"
 	//"database/sql"
 	//"errors"
@@ -135,6 +137,9 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
     var choutput chan OutputMessage = make(chan OutputMessage)
     go readTranslateOutputMessageChannel(choutput, bot, db)
 
+	var chspider chan spider.SpiderResponse= make(chan spider.SpiderResponse)
+	go readSpiderChannel(chspider, bot, db) //, bot
+
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 	updates, err := bot.GetUpdatesChan(u)
@@ -199,6 +204,9 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
                 if update.Message.Text =="/help" || update.Message.Text =="/start"{
                     msgtext = HELP_TEXT
 				    msg = tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
+                } else if update.Message.Text =="/reset" || update.Message.Text =="/del" {
+                    msgtext = "Cleared, please input new content or url."
+				    msg = tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
                 }
                 bot.Send(msg)
                 //msgtext = ProcessUpdateMessageWithSlash(bot, &update, ch, db,  u_id , chat_id )
@@ -207,7 +215,7 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 				//    bot.Send(msg)
                 //}
 			default:
-                resultmsg := ProcessUpdateMessageChat(bot, &update, ch, db,  u_id , chat_id )
+                resultmsg := ProcessUpdateMessageChat(bot, &update, ch, chspider, db,  u_id , chat_id )
                 fmt.Println("===resultmsg====")
                 fmt.Println(resultmsg)
 			}
@@ -235,6 +243,57 @@ func readTranslateChannel(c chan session.State, bot *tgbotapi.BotAPI, db *databa
 		}
 	}
 }
+
+func readSpiderChannel(c chan spider.SpiderResponse, bot *tgbotapi.BotAPI, db *database.Db) {
+	for {
+		spidermsg := <-c
+        fmt.Println(spidermsg)
+        if spidermsg.Content !=""{
+            currentSession := loadSession(spidermsg.U_id, spidermsg.Chat_id, db)
+            currentSession.Input.Text = spidermsg.Content
+            msg := tgbotapi.NewMessage(spidermsg.Chat_id, fmt.Sprintf("Fetch content from %s\n%s",spidermsg.Url, spidermsg.Content))
+		    bot.Send(msg)
+            r, responsemsg := currentSession.Input.verifyData(spidermsg.Chat_id)
+            if r == true {
+                currentSession.State = DATA_OK
+            }
+
+            b, err := msgpack.Marshal(&currentSession)
+            fmt.Println(err)
+            if err == nil {
+                commandtag, err := db.SetSession(spidermsg.Chat_id, spidermsg.U_id, b)
+                fmt.Println(commandtag)
+                if err != nil {
+                    fmt.Println(err)
+                } else {
+				    bot.Send(responsemsg)
+                }
+            } else {
+                fmt.Println(err)
+            }
+
+        } else {
+            msg := tgbotapi.NewMessage(spidermsg.Chat_id, fmt.Sprintf("Can't fetch content from %s , please input the content.",spidermsg.Url))
+		    bot.Send(msg)
+        }
+		//commandtag, err := db.SetChatState(stat.Chat_id, stat.U_id, stat.Name, stat.Text)
+		//if err != nil {
+		//	fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		//} else {
+		//	fmt.Fprintf(os.Stderr, "commandtag: %v\n", commandtag)
+
+	    //    var state_list []string
+	    //    state_list = append(state_list, "UPDATE")
+	    //    state_list = append(state_list, "SHOW")
+	    //    state_list = append(state_list, "PUBLISH")
+	    //    state_list = append(state_list, "NEW")
+        //    menuitem := session.MakeMenu(state_list)
+        //    msg := tgbotapi.NewMessage(stat.Chat_id, fmt.Sprintf("%s\n--------\nYou can send these commands:\n%s",stat.Text, menuitem))
+		//	bot.Send(msg)
+		//}
+	}
+}
+
 
 func main() {
 	loadconf()
