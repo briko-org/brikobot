@@ -1,19 +1,20 @@
 package main
 
 import (
+	"fmt"
+	"bytes"
+	"strconv"
+	"strings"
+	"regexp"
+	"encoding/json"
+	"io/ioutil"
+	"net/http"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
+	"github.com/abadojack/whatlanggo"
 	"github.com/virushuo/brikobot/util"
 	"github.com/virushuo/brikobot/spider"
     "github.com/google/uuid"
     "github.com/golang/glog"
-	"encoding/json"
-	"io/ioutil"
-	"net/http"
-	"bytes"
-	"fmt"
-	"strconv"
-	"strings"
-	"regexp"
 	"github.com/virushuo/brikobot/database"
     "github.com/vmihailenco/msgpack/v4"
 )
@@ -208,7 +209,7 @@ func (inmsg *InputMessage) verifyData(chat_id int64) (bool, tgbotapi.MessageConf
 			ChatID: chat_id,
 			ReplyToMessageID: 0,
 		},
-        Text: fmt.Sprintf("Input: [%s]%s\nsource link:%s\nOriginal language is [%s], you can set original language with buttons below.", inmsg.Lang, inmsg.Text, inmsg.SourceURL, inmsg.Lang),
+        Text: fmt.Sprintf("Input: [%s]%s\n\nSource link:%s\n\nOriginal language is [%s], you can set original language with buttons below.", inmsg.Lang, inmsg.Text, inmsg.SourceURL, inmsg.Lang),
 		//ParseMode: "Markdown",
 		DisableWebPagePreview: true,
 	}
@@ -225,9 +226,15 @@ func updateSession(input string, session *Session){
     } else {
         //if len(text) == 2 && 
         if len(text) == 2 && inputlangVerify(text) == true{
-            session.Input.Lang=text
+            session.Input.Lang = text
         } else {
-            session.Input.Text=text
+            session.Input.Text = text
+	        lang_info := whatlanggo.Detect(text)
+            input_lang := lang_info.Lang.Iso6391()
+            if LANG_CORRELATION[input_lang] != "" {
+                input_lang = LANG_CORRELATION[input_lang]
+            }
+            session.Input.Lang = input_lang
         }
     }
 }

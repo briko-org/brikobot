@@ -2,6 +2,11 @@ package main
 
 import (
 	"fmt"
+	"os"
+    "flag"
+	"strconv"
+	"strings"
+	"path/filepath"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/abadojack/whatlanggo"
 	"github.com/spf13/viper"
@@ -9,11 +14,6 @@ import (
 	"github.com/virushuo/brikobot/spider"
     "github.com/vmihailenco/msgpack/v4"
     "github.com/golang/glog"
-	"os"
-    "flag"
-	"path/filepath"
-	"strconv"
-	"strings"
 )
 
 var db *database.Db
