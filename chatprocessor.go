@@ -164,6 +164,9 @@ func readTranslateOutputMessageChannel(c chan OutputMessage , bot *tgbotapi.BotA
 
 func (inmsg *InputMessage) verifyData(chat_id int64) (bool, tgbotapi.MessageConfig) {
     lang_list := []string {"zh", "en", "fr", "jp"}
+
+    fmt.Println("===verifydata")
+    fmt.Println(inmsg)
     if inmsg.Text == ""{
         return false, tgbotapi.NewMessage(chat_id, "please input the content")
     } else if inmsg.Lang == "" {
@@ -279,6 +282,7 @@ func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch 
 
     if cmd =="SETLANG" {
         currentSession.Input.Lang=query
+        fmt.Println("====verify 2")
         r, responsemsg :=currentSession.Input.verifyData(chat_id)
         if r == true {
             currentSession.State = DATA_OK
@@ -380,7 +384,10 @@ func ProcessUpdateMessageChat(bot *tgbotapi.BotAPI, update *tgbotapi.Update, chs
                 if currentSession.Input.SourceURL!="" && currentSession.Input.Text ==""{
                     s := ""
                     canFetch,s = currentSession.tryFetchUrl(chspider, u_id, chat_id)
-				    msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("I'm trying to fetch content from %s",s))
+				    msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("I'm can't fetch this link  %s",s))
+                    if canFetch ==true {
+				        msg = tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("I'm trying to fetch content from %s",s))
+                    }
                     bot.Send(msg)
                 }
 

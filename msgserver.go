@@ -240,6 +240,8 @@ func readSpiderChannel(c chan spider.SpiderResponse, bot *tgbotapi.BotAPI, db *d
             }
             msg := tgbotapi.NewMessage(spidermsg.Chat_id, msgtext)
 		    bot.Send(msg)
+
+            currentSession.Input.SourceURL = spidermsg.Url
             r, responsemsg := currentSession.Input.verifyData(spidermsg.Chat_id)
             if r == true {
                 currentSession.State = DATA_OK
