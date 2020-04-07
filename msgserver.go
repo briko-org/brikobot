@@ -6,16 +6,11 @@ import (
 	"github.com/abadojack/whatlanggo"
 	"github.com/spf13/viper"
 	"github.com/virushuo/brikobot/database"
-	"github.com/virushuo/brikobot/session"
 	"github.com/virushuo/brikobot/spider"
     "github.com/vmihailenco/msgpack/v4"
-	//"github.com/virushuo/brikobot/util"
-	//"database/sql"
-	//"errors"
 	"log"
 	"os"
 	"path/filepath"
-	//"regexp"
 	"strconv"
 	"strings"
 )
@@ -134,8 +129,8 @@ func publishToChat(from_id int, chat_id int64, text string, lang_list []string, 
 
 
 func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
-	var ch chan session.State = make(chan session.State)
-	go readTranslateChannel(ch, bot, db)
+	//var ch chan session.State = make(chan session.State)
+	//go readTranslateChannel(ch, bot, db)
 
     var choutput chan OutputMessage = make(chan OutputMessage)
     go readTranslateOutputMessageChannel(choutput, bot, db)
@@ -161,7 +156,7 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
                 fmt.Println("==========Query:")
                 fmt.Println(update.CallbackQuery.Data)
                 if cmd =="SETLANG" || cmd =="SUBMIT" || cmd =="CANCEL" || cmd == "EDIT" || cmd == "PUBLISH"{
-				    _ = ProcessUpdateCmdMessage(bot, cmd, callbackcmd[1], choutput, db, update.CallbackQuery.Message.MessageID, u_id , chat_id )
+				    ProcessUpdateCmdMessage(bot, cmd, callbackcmd[1], choutput, db, update.CallbackQuery.Message.MessageID, u_id , chat_id )
 			        bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
                 }
             } else {
@@ -213,37 +208,9 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 				    msg = tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
                 }
                 bot.Send(msg)
-                //msgtext = ProcessUpdateMessageWithSlash(bot, &update, ch, db,  u_id , chat_id )
-                //if msgtext !=""{
-				//    msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
-				//    bot.Send(msg)
-                //}
 			default:
-                resultmsg := ProcessUpdateMessageChat(bot, &update, ch, chspider, db,  u_id , chat_id )
-                fmt.Println("===resultmsg====")
-                fmt.Println(resultmsg)
+                ProcessUpdateMessageChat(bot, &update, chspider, db,  u_id , chat_id )
 			}
-		}
-	}
-}
-
-func readTranslateChannel(c chan session.State, bot *tgbotapi.BotAPI, db *database.Db) {
-	for {
-		stat := <-c
-		commandtag, err := db.SetChatState(stat.Chat_id, stat.U_id, stat.Name, stat.Text)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		} else {
-			fmt.Fprintf(os.Stderr, "commandtag: %v\n", commandtag)
-
-	        var state_list []string
-	        state_list = append(state_list, "UPDATE")
-	        state_list = append(state_list, "SHOW")
-	        state_list = append(state_list, "PUBLISH")
-	        state_list = append(state_list, "NEW")
-            menuitem := session.MakeMenu(state_list)
-            msg := tgbotapi.NewMessage(stat.Chat_id, fmt.Sprintf("%s\n--------\nYou can send these commands:\n%s",stat.Text, menuitem))
-			bot.Send(msg)
 		}
 	}
 }
@@ -296,21 +263,6 @@ func readSpiderChannel(c chan spider.SpiderResponse, bot *tgbotapi.BotAPI, db *d
             msg := tgbotapi.NewMessage(spidermsg.Chat_id, fmt.Sprintf("Can't fetch content from %s , please input the content.",spidermsg.Url))
 		    bot.Send(msg)
         }
-		//commandtag, err := db.SetChatState(stat.Chat_id, stat.U_id, stat.Name, stat.Text)
-		//if err != nil {
-		//	fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		//} else {
-		//	fmt.Fprintf(os.Stderr, "commandtag: %v\n", commandtag)
-
-	    //    var state_list []string
-	    //    state_list = append(state_list, "UPDATE")
-	    //    state_list = append(state_list, "SHOW")
-	    //    state_list = append(state_list, "PUBLISH")
-	    //    state_list = append(state_list, "NEW")
-        //    menuitem := session.MakeMenu(state_list)
-        //    msg := tgbotapi.NewMessage(stat.Chat_id, fmt.Sprintf("%s\n--------\nYou can send these commands:\n%s",stat.Text, menuitem))
-		//	bot.Send(msg)
-		//}
 	}
 }
 

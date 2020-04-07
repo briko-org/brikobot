@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/go-telegram-bot-api/telegram-bot-api"
-	"github.com/virushuo/brikobot/session"
 	"github.com/virushuo/brikobot/util"
 	"github.com/virushuo/brikobot/spider"
     "github.com/google/uuid"
@@ -194,8 +193,6 @@ func (inmsg *InputMessage) verifyData(chat_id int64) (bool, tgbotapi.MessageConf
 	}
 	responseMsg.ReplyMarkup = makeReplyKeyboard(lang_list, true)
     return true, responseMsg
-
-    //return true, tgbotapi.NewMessage(chat_id, fmt.Sprintf("date is ok to submit to the briko AI: %s %s %s", inmsg.Lang, inmsg.Text, inmsg.SourceURL))
 }
 
 func updateSession(input string, session *Session){
@@ -203,10 +200,7 @@ func updateSession(input string, session *Session){
 
     validURL := util.IsURL(text)
     if validURL == true {
-        //fetch?
-        //sourceURL=strings.TrimSpace(input)
         session.Input.SourceURL=text
-        //return true, ""
     } else {
         //if len(text) == 2 && 
         if len(text) == 2 && inputlangVerify(text) == true{
@@ -214,10 +208,7 @@ func updateSession(input string, session *Session){
         } else {
             session.Input.Text=text
         }
-        //return true, ""
-        //text = strings.TrimSpace(input)
     }
-    //return true, ""
 }
 
 func isTwitterUrl(url string) bool{
@@ -249,11 +240,6 @@ func (session *Session) tryFetchUrl(ch chan spider.SpiderResponse , u_id int, ch
 }
 
 func inputlangVerify(lang string) bool{
-    //lang_list := []string {"zh", "en", "fr", "jp"}
-    //var LANG_CORRELATION map[string]string 
-    //LANG_CORRELATION = make(map[string]string)
-    //LANG_CORRELATION["ja"]="jp"
-    //LANG_CORRELATION["cn"]="zh"
     result := false
     if LANG_CORRELATION[lang] != "" {
         lang = LANG_CORRELATION[lang]
@@ -264,9 +250,6 @@ func inputlangVerify(lang string) bool{
         }
     }
     return result
-}
-
-func ProcessTranslationResult(outputmsg *OutputMessage){
 }
 
 func loadSession(u_id int, chat_id int64, db *database.Db) Session{
@@ -290,23 +273,9 @@ func loadSession(u_id int, chat_id int64, db *database.Db) Session{
 
 }
 
-func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch chan OutputMessage, db *database.Db, message_id int, u_id int, chat_id int64) string{
-    var currentSession Session
-	data, err := db.GetSession(chat_id, u_id)
-    if len(data) == 0 {
-        currentSession = Session {
-            Id: uuid.New(),
-            State: NEED_DATA_INPUT,
-            Input: InputMessage {},
-            Output: OutputMessage {},
-        }
-    } else {
-        if err == nil {
-	        err = msgpack.Unmarshal(data, &currentSession)
-        } else {
-            fmt.Println(err)
-        }
-    }
+func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch chan OutputMessage, db *database.Db, message_id int, u_id int, chat_id int64) {
+
+    currentSession := loadSession(u_id, chat_id, db)
 
     if cmd =="SETLANG" {
         currentSession.Input.Lang=query
@@ -397,32 +366,12 @@ func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch 
         re_msg := tgbotapi.NewMessage(chat_id, "")
         re_msg.Text = fmt.Sprintf("Unknown Queryback command: %s", cmd)
     }
-
-    return "ProcessUpdateCmdMessage"
 }
 
-func ProcessUpdateMessageChat(bot *tgbotapi.BotAPI, update *tgbotapi.Update, ch chan session.State, chspider chan spider.SpiderResponse, db *database.Db,  u_id int, chat_id int64) string{
+func ProcessUpdateMessageChat(bot *tgbotapi.BotAPI, update *tgbotapi.Update, chspider chan spider.SpiderResponse, db *database.Db,  u_id int, chat_id int64) {
     input := update.Message.Text
 
-    var currentSession Session
-	data, err := db.GetSession(chat_id, u_id)
-    if len(data) == 0 {
-        currentSession = Session {
-            Id: uuid.New(),
-            State: NEED_DATA_INPUT,
-            Input: InputMessage {},
-            Output: OutputMessage {},
-        }
-    } else {
-        if err == nil {
-	    err = msgpack.Unmarshal(data, &currentSession)
-        } else {
-            fmt.Println(err)
-        }
-    }
-
-fmt.Println("=======currentSession")
-fmt.Println(currentSession)
+    currentSession := loadSession(u_id, chat_id, db)
     if currentSession.State != DONE {
 		switch currentSession.State  {
             case NEED_DATA_INPUT:
@@ -479,16 +428,13 @@ fmt.Println(currentSession)
     b, err := msgpack.Marshal(&currentSession)
     fmt.Println(err)
     if err == nil {
-        commandtag, err := db.SetSession(chat_id, u_id, b)
-        fmt.Println(commandtag)
+        _, err := db.SetSession(chat_id, u_id, b)
         if err != nil {
             fmt.Println(err)
         }
     } else {
         fmt.Println(err)
     }
-
-    return "ProcessUpdateMessageChat end"
 }
 
 func requestBriko(APIURL string, lang_list []string, lang_correlation map[string]string, msgId int,chat_id int64, u_id int, inmsg InputMessage, ch chan OutputMessage) {
