@@ -11,10 +11,9 @@ WORKDIR /build
 COPY go.mod .
 COPY go.sum .
 COPY database .
+COPY spider .
 COPY util .
-COPY session .
 COPY msgserver.go .
-COPY cmdprocessor.go .
 COPY chatprocessor.go .
 
 RUN go mod download
@@ -23,7 +22,7 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN go build -o main msgserver.go cmdprocessor.go chatprocessor.go
+RUN go build -o main msgserver.go chatprocessor.go
 
 # Move to /dist directory as the place for resulting binary folder
 WORKDIR /dist
@@ -32,6 +31,4 @@ WORKDIR /dist
 RUN cp /build/main .
 
 # Command to run when starting the container
-CMD ["/dist/main"]
-
-
+CMD ["/dist/main", "-logtostderr=true","-v=4"]
