@@ -184,7 +184,6 @@ func readTranslateOutputMessageChannel(c chan OutputMessage , bot *tgbotapi.BotA
 
 
 func (inmsg *InputMessage) verifyData(chat_id int64) (bool, tgbotapi.MessageConfig) {
-    lang_list := []string {"zh", "en", "fr", "jp"}
     glog.V(3).Infof("verifyData: %v", inmsg)
     if inmsg.Text == ""{
         return false, tgbotapi.NewMessage(chat_id, "please input the content")
@@ -198,7 +197,7 @@ func (inmsg *InputMessage) verifyData(chat_id int64) (bool, tgbotapi.MessageConf
 			//ParseMode: "Markdown",
 			DisableWebPagePreview: false,
 		}
-		responseMsg.ReplyMarkup = makeReplyKeyboard(lang_list, false)
+		responseMsg.ReplyMarkup = makeReplyKeyboard(SUPPORT_LANG_LIST, false)
         return false, responseMsg
     } else if inmsg.SourceURL == "" {
         return false, tgbotapi.NewMessage(chat_id, "please input the source url")
@@ -209,11 +208,11 @@ func (inmsg *InputMessage) verifyData(chat_id int64) (bool, tgbotapi.MessageConf
 			ChatID: chat_id,
 			ReplyToMessageID: 0,
 		},
-        Text: fmt.Sprintf("Input: [%s]%s source:%s", inmsg.Lang, inmsg.Text, inmsg.SourceURL) ,
+        Text: fmt.Sprintf("Input: [%s]%s\nsource link:%s\nOriginal language is [%s], you can set original language with buttons below.", inmsg.Lang, inmsg.Text, inmsg.SourceURL, inmsg.Lang),
 		//ParseMode: "Markdown",
-		DisableWebPagePreview: false,
+		DisableWebPagePreview: true,
 	}
-	responseMsg.ReplyMarkup = makeReplyKeyboard(lang_list, true)
+	responseMsg.ReplyMarkup = makeReplyKeyboard(SUPPORT_LANG_LIST, true)
     return true, responseMsg
 }
 
@@ -443,7 +442,7 @@ func ProcessUpdateMessageChat(bot *tgbotapi.BotAPI, update *tgbotapi.Update, chs
 			            },
 			            Text: fmt.Sprintf("%s\n%s",lang_content, ""),
 			            //ParseMode: "Markdown",
-			            DisableWebPagePreview: false,
+			            DisableWebPagePreview: true,
 		            }
 		            msg.ReplyMarkup = makePublishKeyboard(lang_list)
 		            bot.Send(msg)

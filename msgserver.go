@@ -230,7 +230,7 @@ func readSpiderChannel(c chan spider.SpiderResponse, bot *tgbotapi.BotAPI, db *d
 
             msgtext := fmt.Sprintf("Fetch content from %s\n%s",spidermsg.Url, spidermsg.Content)
             if currentSession.Input.Lang != "" {
-                msgtext += fmt.Sprintf("\nSet Language: %s",currentSession.Input.Lang)
+                msgtext += fmt.Sprintf("\nI set Language as: %s",currentSession.Input.Lang)
             }
             msg := tgbotapi.NewMessage(spidermsg.Chat_id, msgtext)
 		    bot.Send(msg)
