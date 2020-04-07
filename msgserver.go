@@ -193,6 +193,9 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
                 if update.Message.Text =="/help" || update.Message.Text =="/start"{
                     msgtext = HELP_TEXT
 				    msg = tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
+                } else if update.Message.Text =="/join" {
+                    msgtext = fmt.Sprintf("Your Telegram ID: %d", u_id)
+				    msg = tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
                 } else if update.Message.Text =="/reset" || update.Message.Text =="/del" {
                     db.DelSession(chat_id, u_id)
                     msgtext = "Cleared, please input new content or url, or /help or /start for help."
