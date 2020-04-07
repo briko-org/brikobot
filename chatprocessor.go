@@ -5,6 +5,7 @@ import (
 	"github.com/virushuo/brikobot/util"
 	"github.com/virushuo/brikobot/spider"
     "github.com/google/uuid"
+    "github.com/golang/glog"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
@@ -34,6 +35,7 @@ type InputMessage struct {
 }
 
 type OutputMessage struct{
+    Error error
     Chat_id int64
     U_id int
 	Text    string
@@ -120,42 +122,61 @@ func makePublishKeyboard(lang_list []string) tgbotapi.InlineKeyboardMarkup {
 func readTranslateOutputMessageChannel(c chan OutputMessage , bot *tgbotapi.BotAPI, db *database.Db) {
 	for {
 		outputmsg := <-c
-        lang_content := fmt.Sprintf("[%s]%s %s", outputmsg.Lang, outputmsg.Text, outputmsg.SourceURL)
-
-	    lang_list := []string{}
-	    for key, value := range outputmsg.Translation {
-			lang_list = append(lang_list, key)
-	        if len(lang_content) > 0 {
-                lang_content = lang_content + fmt.Sprintf("\n\n[%s]%s", key, value)
-	        } else {
-                lang_content = lang_content + fmt.Sprintf("[%s]%s", key, value)
-	        }
-        }
-
-        currentSession := loadSession(outputmsg.U_id, outputmsg.Chat_id, db)
-        currentSession.Output = outputmsg
-        currentSession.State = TRANSLATE_OK
-        currentSession.StateData = ""
-
-        b, err := msgpack.Marshal(&currentSession)
-        if err != nil {
-            fmt.Println(err)
-        } else {
-            _, err := db.SetSession(outputmsg.Chat_id, outputmsg.U_id, b)
-            if err != nil {
-                fmt.Println(err)
+        if outputmsg.Error == nil {
+            lang_content := fmt.Sprintf("[%s]%s %s", outputmsg.Lang, outputmsg.Text, outputmsg.SourceURL)
+	        lang_list := []string{}
+	        for key, value := range outputmsg.Translation {
+		        lang_list = append(lang_list, key)
+	            if len(lang_content) > 0 {
+                    lang_content = lang_content + fmt.Sprintf("\n\n[%s]%s", key, value)
+	            } else {
+                    lang_content = lang_content + fmt.Sprintf("[%s]%s", key, value)
+	            }
             }
-		    msg := tgbotapi.MessageConfig{
-			    BaseChat: tgbotapi.BaseChat{
-			        ChatID: outputmsg.Chat_id,
-			        ReplyToMessageID: 0,
-			    },
-			    Text: fmt.Sprintf("%s\n%s",lang_content, ""),
-			    //ParseMode: "Markdown",
-			    DisableWebPagePreview: false,
-		    }
-		    msg.ReplyMarkup = makePublishKeyboard(lang_list)
-		    bot.Send(msg)
+
+            currentSession := loadSession(outputmsg.U_id, outputmsg.Chat_id, db)
+            currentSession.Output = outputmsg
+            currentSession.State = TRANSLATE_OK
+            currentSession.StateData = ""
+            b, err := msgpack.Marshal(&currentSession)
+            if err != nil {
+                glog.Errorf("readTranslateOutputMessageChannel msgpack Marshal error: %v\n", err)
+            } else {
+                _, err := db.SetSession(outputmsg.Chat_id, outputmsg.U_id, b)
+                if err != nil {
+                    glog.Errorf("readTranslateOutputMessageChannel db.SetSession  error: %v\n", err)
+                }
+                msg := tgbotapi.MessageConfig{
+                    BaseChat: tgbotapi.BaseChat{
+                        ChatID: outputmsg.Chat_id,
+                        ReplyToMessageID: 0,
+                    },
+                    Text: fmt.Sprintf("%s\n%s",lang_content, ""),
+                    //ParseMode: "Markdown",
+                    DisableWebPagePreview: false,
+	                }
+		        msg.ReplyMarkup = makePublishKeyboard(lang_list)
+		        bot.Send(msg)
+            }
+        } else {
+            //outputmsg.Error
+            currentSession := loadSession(outputmsg.U_id, outputmsg.Chat_id, db)
+            currentSession.State = DATA_OK
+            b, err := msgpack.Marshal(&currentSession)
+            if err != nil {
+                glog.Errorf("readTranslateOutputMessageChannel msgpack Marshal error: %v\n", err)
+            } else {
+                _, err := db.SetSession(outputmsg.Chat_id, outputmsg.U_id, b)
+                if err != nil {
+                    glog.Errorf("readTranslateOutputMessageChannel db.SetSession  error: %v\n", err)
+                }
+
+                _, responsemsg :=currentSession.Input.verifyData(outputmsg.Chat_id)
+		        bot.Send(responsemsg)
+
+                errormsg := tgbotapi.NewMessage(outputmsg.Chat_id, fmt.Sprintf("BRIKO API Error: %s You can retry later.",outputmsg.Error.Error()))
+                bot.Send(errormsg)
+            }
         }
 	}
 }
@@ -164,9 +185,7 @@ func readTranslateOutputMessageChannel(c chan OutputMessage , bot *tgbotapi.BotA
 
 func (inmsg *InputMessage) verifyData(chat_id int64) (bool, tgbotapi.MessageConfig) {
     lang_list := []string {"zh", "en", "fr", "jp"}
-
-    fmt.Println("===verifydata")
-    fmt.Println(inmsg)
+    glog.V(3).Infof("verifyData: %v", inmsg)
     if inmsg.Text == ""{
         return false, tgbotapi.NewMessage(chat_id, "please input the content")
     } else if inmsg.Lang == "" {
@@ -268,8 +287,11 @@ func loadSession(u_id int, chat_id int64, db *database.Db) Session{
     } else {
         if err == nil {
 	        err = msgpack.Unmarshal(data, &currentSession)
+            if err!=nil {
+                glog.Errorf("load session Unmarshal error: %v\n", err)
+            }
         } else {
-            fmt.Println(err)
+            glog.Errorf("db.GetSession error: %v\n", err)
         }
     }
     return currentSession
@@ -282,7 +304,6 @@ func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch 
 
     if cmd =="SETLANG" {
         currentSession.Input.Lang=query
-        fmt.Println("====verify 2")
         r, responsemsg :=currentSession.Input.verifyData(chat_id)
         if r == true {
             currentSession.State = DATA_OK
@@ -290,11 +311,11 @@ func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch 
 
         b, err := msgpack.Marshal(&currentSession)
         if err != nil {
-            fmt.Println(err)
+            glog.Errorf("SETLANG Marshal error: %v\n", err)
         } else {
             _, err := db.SetSession(chat_id, u_id, b)
             if err != nil {
-                fmt.Println(err)
+                glog.Errorf("SETLANG SetSession error: %v\n", err)
             }
 	        bot.Send(responsemsg)
         }
@@ -303,11 +324,11 @@ func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch 
         currentSession.StateData = query
         b, err := msgpack.Marshal(&currentSession)
         if err != nil {
-            fmt.Println(err)
+            glog.Errorf("EDIT Marshal error: %v\n", err)
         } else {
             _, err := db.SetSession(chat_id, u_id, b)
             if err != nil {
-                fmt.Println(err)
+                glog.Errorf("EDIT SetSession error: %v\n", err)
             }
             if currentSession.Output.Translation[currentSession.StateData] != ""{
                 responsemsg := tgbotapi.NewMessage(chat_id, currentSession.Output.Translation[currentSession.StateData])
@@ -319,14 +340,14 @@ func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch 
     } else if cmd =="SUBMIT"{
         if currentSession.State== DATA_OK {
             currentSession.State = SEND_TO_API
-            go requestBriko(BRIKO_API, REQUEST_LANG_LIST , LANG_CORRELATION, message_id, chat_id, u_id, currentSession.Input, ch)
+            go requestBriko(BRIKO_API, REQUEST_LANG_LIST , LANG_CORRELATION, message_id, chat_id, u_id, currentSession, ch)
             b, err := msgpack.Marshal(&currentSession)
             if err != nil {
-                fmt.Println(err)
+                glog.Errorf("SUBMIT Marshal error: %v\n", err)
             } else {
                 _, err := db.SetSession(chat_id, u_id, b)
                 if err != nil {
-                    fmt.Println(err)
+                    glog.Errorf("SUBMIT SetSession error: %v\n", err)
                 }
                 responsemsg := tgbotapi.NewMessage(chat_id, "Waiting for BRIKO AI translate.")
 	            bot.Send(responsemsg)
@@ -341,7 +362,7 @@ func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch 
             responsemsg := tgbotapi.NewMessage(chat_id, "Cancelled, please input the content.")
 	        bot.Send(responsemsg)
         } else {
-            fmt.Println(err)
+            glog.Errorf("CANCEL DelSession error: %v\n", err)
         }
         //delete session 
     } else if cmd =="PUBLISH"{
@@ -358,13 +379,14 @@ func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch 
         lang_content = lang_content + fmt.Sprintf("\n%s", currentSession.Output.SourceURL)
         publishresult := publishToChat(u_id, CHANNEL_CHAT_ID, lang_content, lang_list, bot, db)
         if publishresult ==true {
+            msgtext := "Publish successed. You can input new text to translate."
             _, err := db.DelSession(chat_id, u_id)
-            if err == nil {
-                responsemsg := tgbotapi.NewMessage(chat_id, "Publish successed. You can input new text to translate.")
-	            bot.Send(responsemsg)
-            } else {
-                fmt.Println(err)
+            if err != nil {
+                glog.Errorf("CANCEL DelSession error: %v\n", err)
+                msgtext += "\ninput /reset to start the next task."
             }
+            responsemsg := tgbotapi.NewMessage(chat_id, msgtext)
+	        bot.Send(responsemsg)
         }
     } else {
         re_msg := tgbotapi.NewMessage(chat_id, "")
@@ -426,25 +448,25 @@ func ProcessUpdateMessageChat(bot *tgbotapi.BotAPI, update *tgbotapi.Update, chs
 		            msg.ReplyMarkup = makePublishKeyboard(lang_list)
 		            bot.Send(msg)
                 }
-
 			default:
-                fmt.Println("unknown state")
+                msg := tgbotapi.NewMessage(update.Message.Chat.ID, "input /reset to start the new task %s")
+                bot.Send(msg)
         }
     }
 
     b, err := msgpack.Marshal(&currentSession)
-    fmt.Println(err)
     if err == nil {
         _, err := db.SetSession(chat_id, u_id, b)
         if err != nil {
-            fmt.Println(err)
+            glog.Errorf("ProcessUpdateMessageChat db.SetSession error: %v\n", err)
         }
     } else {
-        fmt.Println(err)
+        glog.Errorf("SUBMIT Marshal error: %v\n", err)
     }
 }
 
-func requestBriko(APIURL string, lang_list []string, lang_correlation map[string]string, msgId int,chat_id int64, u_id int, inmsg InputMessage, ch chan OutputMessage) {
+func requestBriko(APIURL string, lang_list []string, lang_correlation map[string]string, msgId int, chat_id int64, u_id int, currentSession Session, ch chan OutputMessage) {
+    inmsg := currentSession.Input
 	data := &requestMsg{
 		MsgType:    "Translation",
 		MsgID:      strconv.Itoa(msgId),
@@ -465,32 +487,53 @@ func requestBriko(APIURL string, lang_list []string, lang_correlation map[string
 
 	data.RequestLang = requestLang
 	output, _ := json.Marshal(data)
-	resp, _ := http.Post(APIURL, "application/json", bytes.NewBuffer(output))
-    bodyBytes, err1 := ioutil.ReadAll(resp.Body)
-    if err1 != nil {
-        fmt.Println(err1)
-        //TODO: send the error msg to bot
-    }
-    bodyString := string(bodyBytes)
-    d := json.NewDecoder(strings.NewReader(bodyString))
-	rmsg := &responseMsg{}
-	err := d.Decode(rmsg)
+    resp, httperr := http.Post(APIURL, "application/json", bytes.NewBuffer(output))
+    if httperr != nil {
+        glog.Errorf("BRIKO API connect error: %w\n", httperr)
+        apierr := fmt.Errorf("BRIKO API connect error: %w\n", httperr)
+	    output := &OutputMessage{
+            Error: apierr,
+            Chat_id: chat_id,
+            U_id: u_id,
+        }
+        ch <- *output
+        return
+    } else {
+        bodyBytes, err1 := ioutil.ReadAll(resp.Body)
+        if err1 != nil {
+            glog.Errorf("BRIKO API response error: %w\n", httperr)
+            apierr := fmt.Errorf("BRIKO API response error: %w\n", httperr)
 
-	if err != nil {
-	} else {
-	    if rmsg.MsgFlag == "success" {
 	        output := &OutputMessage{
+                Error: apierr,
                 Chat_id: chat_id,
                 U_id: u_id,
-                Text:    inmsg.Text,
-                Lang:    inmsg.Lang,
-                SourceURL: inmsg.SourceURL,
-                Translation: rmsg.TranslationResults,
-	        }
+            }
             ch <- *output
+            return
+        }
+        bodyString := string(bodyBytes)
+        d := json.NewDecoder(strings.NewReader(bodyString))
+	    rmsg := &responseMsg{}
+	    err := d.Decode(rmsg)
+
+	    if err != nil {
 	    } else {
-            fmt.Println(rmsg.MsgFlag) //TODO: send the error msg to bot
-	    }
+	        if rmsg.MsgFlag == "success" {
+	            output := &OutputMessage{
+                    Error: nil,
+                    Chat_id: chat_id,
+                    U_id: u_id,
+                    Text:    inmsg.Text,
+                    Lang:    inmsg.Lang,
+                    SourceURL: inmsg.SourceURL,
+                    Translation: rmsg.TranslationResults,
+	            }
+                ch <- *output
+	        } else {
+                fmt.Println(rmsg.MsgFlag) //TODO: send the error msg to bot
+	        }
+        }
     }
 }
 

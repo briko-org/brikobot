@@ -130,9 +130,6 @@ func publishToChat(from_id int, chat_id int64, text string, lang_list []string, 
 
 
 func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
-	//var ch chan session.State = make(chan session.State)
-	//go readTranslateChannel(ch, bot, db)
-
     var choutput chan OutputMessage = make(chan OutputMessage)
     go readTranslateOutputMessageChannel(choutput, bot, db)
 
@@ -164,17 +161,16 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
                     lang := callbackdata[0]
                     user_ranking, err := strconv.Atoi(callbackdata[1])
                     if err == nil { // error: ranking value must be a int
-                        commandtag, err := db.AddRanking(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID, update.CallbackQuery.From.ID, lang, user_ranking)
+                        _, err = db.AddRanking(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID, update.CallbackQuery.From.ID, lang, user_ranking)
                         if err != nil {
-                            fmt.Fprintf(os.Stderr, "error: %v\n", err)
-                            fmt.Fprintf(os.Stderr, "commandtag: %v\n", commandtag)
+                            glog.Errorf("error: %v\n", err)
                         } else {
                             re_msg := tgbotapi.NewMessage(int64(update.CallbackQuery.From.ID), "")
                             re_msg.Text = fmt.Sprintf("Rating %s Message %d has been submitted.", update.CallbackQuery.Data, update.CallbackQuery.Message.MessageID)
                             bot.Send(re_msg)
                         }
                     } else {
-                        fmt.Fprintf(os.Stderr, "rating value strconv error: %s %v\n", update.CallbackQuery.Data, err)
+                        glog.Errorf("rating value strconv error: %s %v\n", update.CallbackQuery.Data, err)
                     }
                     bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
 			    }
@@ -184,11 +180,7 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 		if update.Message != nil {
 			chat_id := update.Message.Chat.ID
 			u_id := update.Message.From.ID
-			n, t, err := db.GetChatState(chat_id, u_id)
 			msgtext := "default text"
-            fmt.Println(n)
-            fmt.Println(t)
-            fmt.Println(err)
 
 			switch []byte(update.Message.Text)[0] {
             case 63: //"?"
@@ -203,7 +195,7 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 				    msg = tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
                 } else if update.Message.Text =="/reset" || update.Message.Text =="/del" {
                     db.DelSession(chat_id, u_id)
-                    msgtext = "Cleared, please input new content or url."
+                    msgtext = "Cleared, please input new content or url, or /help or /start for help."
 				    msg = tgbotapi.NewMessage(update.Message.Chat.ID, msgtext)
                 }
                 bot.Send(msg)
@@ -247,17 +239,15 @@ func readSpiderChannel(c chan spider.SpiderResponse, bot *tgbotapi.BotAPI, db *d
             }
 
             b, err := msgpack.Marshal(&currentSession)
-            fmt.Println(err)
             if err == nil {
-                commandtag, err := db.SetSession(spidermsg.Chat_id, spidermsg.U_id, b)
-                fmt.Println(commandtag)
+                _ , err := db.SetSession(spidermsg.Chat_id, spidermsg.U_id, b)
                 if err != nil {
-                    fmt.Println(err)
+                    glog.Errorf("db SetSession error: %v\n", err)
                 } else {
 				    bot.Send(responsemsg)
                 }
             } else {
-                fmt.Println(err)
+                glog.Errorf("msgpack marshal error: %v\n", err)
             }
 
         } else {
