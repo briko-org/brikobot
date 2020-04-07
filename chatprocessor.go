@@ -492,56 +492,5 @@ func requestBriko(APIURL string, lang_list []string, lang_correlation map[string
             fmt.Println(rmsg.MsgFlag) //TODO: send the error msg to bot
 	    }
     }
-    //fmt.Println(err)
-    //fmt.Println(rmsg)
-	//regex := *regexp.MustCompile(`\[([A-Za-z]{2})\]`)
-	//res := regex.FindStringSubmatch(stat.Text)
-	//if len(res) > 1 {
-	//	data.SourceLang = strings.ToLower(res[1])
-
-
-    //    split_list := strings.Split(stat.Text, " ")
-    //    last_str := split_list[len(split_list)-1]
-    //    validURL := util.IsURL(last_str)
-    //    end_pos := len(last_str)-1
-    //    if validURL == true {
-    //        end_pos = len(stat.Text) - len(last_str)
-    //    }
-
-
-
-
-    //    bodyBytes, err1 := ioutil.ReadAll(resp.Body)
-    //    if err1 != nil {
-    //        fmt.Println(err1)
-    //        //TODO: send the error msg to bot
-    //    }
-    //    bodyString := string(bodyBytes)
-    //    fmt.Println("======bodyString")
-    //    fmt.Println(bodyString)
-    //    fmt.Println(err1)
-    //    d := json.NewDecoder(strings.NewReader(bodyString))
-	//	rmsg := &responseMsg{}
-	//	err := d.Decode(rmsg)
-	//	if err != nil {
-    //        fmt.Println("===responseMsg:");
-	//		fmt.Println(err) //TODO: send the error msg to bot
-	//	} else {
-	//		if rmsg.MsgFlag == "success" {
-    //            lang_content := fmt.Sprintf("[%s] %s %s", data.SourceLang, data.SourceContent, SourceURL)
-	//			lang_list_str := fmt.Sprintf("[%s]", data.SourceLang)
-	//			translation := rmsg.TranslationResults
-	//			for key, value := range translation {
-	//				lang_content = lang_content + fmt.Sprintf("\n\n[%s] %s", key, value)
-	//				lang_list_str = lang_list_str + fmt.Sprintf("[%s]", key)
-	//			}
-	//			ch <- State{"TRANSLATE", fmt.Sprintf("%s:%s", lang_list_str, lang_content), stat.U_id, stat.Chat_id}
-	//		} else {
-	//			fmt.Println(rmsg.MsgFlag) //TODO: send the error msg to bot
-	//		}
-	//	}
-	//} else {
-	//	fmt.Println("no language tag")
-	//}
 }
 
