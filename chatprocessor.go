@@ -154,7 +154,7 @@ func readTranslateOutputMessageChannel(c chan OutputMessage , bot *tgbotapi.BotA
                     },
                     Text: fmt.Sprintf("%s\n%s",lang_content, ""),
                     //ParseMode: "Markdown",
-                    DisableWebPagePreview: false,
+                    DisableWebPagePreview: true,
 	                }
 		        msg.ReplyMarkup = makePublishKeyboard(lang_list)
 		        bot.Send(msg)
@@ -196,7 +196,7 @@ func (inmsg *InputMessage) verifyData(chat_id int64) (bool, tgbotapi.MessageConf
 			},
 			Text: "Please select the original language",
 			//ParseMode: "Markdown",
-			DisableWebPagePreview: false,
+			DisableWebPagePreview: true,
 		}
 		responseMsg.ReplyMarkup = makeReplyKeyboard(SUPPORT_LANG_LIST, false)
         return false, responseMsg
