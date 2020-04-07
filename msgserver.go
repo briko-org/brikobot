@@ -8,8 +8,9 @@ import (
 	"github.com/virushuo/brikobot/database"
 	"github.com/virushuo/brikobot/spider"
     "github.com/vmihailenco/msgpack/v4"
-	"log"
+    "github.com/golang/glog"
 	"os"
+    "flag"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -111,18 +112,18 @@ func publishToChat(from_id int, chat_id int64, text string, lang_list []string, 
 		msg.ReplyMarkup = newkeyboard
 		sentmsg, err := bot.Send(msg)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+            glog.Errorf("error: %v\n", err)
 		}
-		commandtag, err := db.AddMessage(sentmsg.Chat.ID, sentmsg.MessageID, from_id, text)
+		_, err = db.AddMessage(sentmsg.Chat.ID, sentmsg.MessageID, from_id, text)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			fmt.Fprintf(os.Stderr, "commandtag: %v\n", commandtag)
+            glog.Errorf("error: %v\n", err)
             return false
 		}else {
             return true
         }
 	}else {
-        fmt.Println("userid not in the whitelist %v %v", from_id, chat_id)
+
+        glog.V(2).Infof("userid not in the whitelist %v %v", from_id, chat_id)
         return false
     }
 }
@@ -142,19 +143,17 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 	u.Timeout = 60
 	updates, err := bot.GetUpdatesChan(u)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		panic(fmt.Errorf("error: %v\n", err))
 		os.Exit(1)
 	}
 	for update := range updates {
 		if update.CallbackQuery != nil {
             callbackcmd :=  strings.Split(update.CallbackQuery.Data, "_")
 			if len(callbackcmd) == 2 { //is callback cmd
-
 			    chat_id := int64(update.CallbackQuery.From.ID)
 			    u_id := update.CallbackQuery.From.ID
                 cmd := callbackcmd[0]
-                fmt.Println("==========Query:")
-                fmt.Println(update.CallbackQuery.Data)
+                glog.V(2).Infof("User Query %s from id %d", update.CallbackQuery.Data, update.CallbackQuery.From.ID)
                 if cmd =="SETLANG" || cmd =="SUBMIT" || cmd =="CANCEL" || cmd == "EDIT" || cmd == "PUBLISH"{
 				    ProcessUpdateCmdMessage(bot, cmd, callbackcmd[1], choutput, db, update.CallbackQuery.Message.MessageID, u_id , chat_id )
 			        bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
@@ -162,22 +161,22 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
             } else {
 			    callbackdata := strings.Split(update.CallbackQuery.Data, ",")
 			    if len(callbackdata) == 2 {
-			    	lang := callbackdata[0]
-			    	user_ranking, err := strconv.Atoi(callbackdata[1])
-			    	if err == nil { // error: ranking value must be a int
-			    		commandtag, err := db.AddRanking(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID, update.CallbackQuery.From.ID, lang, user_ranking)
-			    		if err != nil {
-			    			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			    			fmt.Fprintf(os.Stderr, "commandtag: %v\n", commandtag)
-			    		} else {
-			    			re_msg := tgbotapi.NewMessage(int64(update.CallbackQuery.From.ID), "")
-			    			re_msg.Text = fmt.Sprintf("Rating %s Message %d has been submitted.", update.CallbackQuery.Data, update.CallbackQuery.Message.MessageID)
-			    			bot.Send(re_msg)
-			    		}
-			    	} else {
-			    		fmt.Fprintf(os.Stderr, "rating value strconv error: %s %v\n", update.CallbackQuery.Data, err)
-			    	}
-			    	bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
+                    lang := callbackdata[0]
+                    user_ranking, err := strconv.Atoi(callbackdata[1])
+                    if err == nil { // error: ranking value must be a int
+                        commandtag, err := db.AddRanking(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID, update.CallbackQuery.From.ID, lang, user_ranking)
+                        if err != nil {
+                            fmt.Fprintf(os.Stderr, "error: %v\n", err)
+                            fmt.Fprintf(os.Stderr, "commandtag: %v\n", commandtag)
+                        } else {
+                            re_msg := tgbotapi.NewMessage(int64(update.CallbackQuery.From.ID), "")
+                            re_msg.Text = fmt.Sprintf("Rating %s Message %d has been submitted.", update.CallbackQuery.Data, update.CallbackQuery.Message.MessageID)
+                            bot.Send(re_msg)
+                        }
+                    } else {
+                        fmt.Fprintf(os.Stderr, "rating value strconv error: %s %v\n", update.CallbackQuery.Data, err)
+                    }
+                    bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
 			    }
             }
 
@@ -270,22 +269,25 @@ func readSpiderChannel(c chan spider.SpiderResponse, bot *tgbotapi.BotAPI, db *d
 
 
 func main() {
+	flag.Parse()
+
 	loadconf()
 	loadwhitelist()
 
 	db, err := database.New(PG_URL)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		panic(fmt.Errorf("Db error: %v\n", err))
 		os.Exit(1)
 	}
 
 	bot, err := tgbotapi.NewBotAPI(BOT_TOKEN)
 	if err != nil {
-		log.Panic(err)
+		panic(fmt.Errorf("Telegram error: %v\n", err))
+		os.Exit(1)
 	}
 
 	bot.Debug = true
 
-	log.Printf("Authorized on account %s", bot.Self.UserName)
+    glog.V(1).Infof("Authorized on account %s", bot.Self.UserName)
 	startservice(bot, db)
 }
