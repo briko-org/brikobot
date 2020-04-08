@@ -412,7 +412,7 @@ func ProcessUpdateMessageChat(bot *tgbotapi.BotAPI, update *tgbotapi.Update, chs
                 if currentSession.Input.SourceURL!="" && currentSession.Input.Text ==""{
                     s := ""
                     canFetch,s = currentSession.tryFetchUrl(chspider, u_id, chat_id)
-				    msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("I'm can't fetch this link  %s",s))
+				    msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Sorry, I can't fetch this link %s",s))
                     if canFetch ==true {
 				        msg = tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("I'm trying to fetch content from %s",s))
                     }
