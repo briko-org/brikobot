@@ -455,7 +455,7 @@ func ProcessUpdateMessageChat(bot *tgbotapi.BotAPI, update *tgbotapi.Update, chs
 		            bot.Send(msg)
                 }
 			default:
-                msg := tgbotapi.NewMessage(update.Message.Chat.ID, "input /reset to start the new task %s")
+                msg := tgbotapi.NewMessage(update.Message.Chat.ID, "input /reset to start the new task.")
                 bot.Send(msg)
         }
     }
