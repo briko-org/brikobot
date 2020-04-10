@@ -1,7 +1,6 @@
 package spider
 
 import (
-	"fmt"
 	"golang.org/x/net/html"
 	"net/http"
 )
