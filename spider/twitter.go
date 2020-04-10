@@ -7,7 +7,6 @@ import (
 )
 
 func trimContent(content string) string{
-    fmt.Println(content[0])
     start := 0
     end := len(content)
     if content[0] == 226 {
@@ -26,7 +25,6 @@ func (spidermsg *SpiderMessage) FetchTweetContent(ch chan SpiderResponse) {
 	content := ""
 	defer resp.Body.Close()
 	if err == nil {
-		fmt.Println(resp.Body)
 		doc, err := html.Parse(resp.Body)
 		if err == nil {
 			var f func(*html.Node)
