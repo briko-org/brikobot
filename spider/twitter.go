@@ -8,13 +8,14 @@ import (
 func trimContent(content string) string{
     start := 0
     end := len(content)
-    if content[0] == 226 {
+    content_runes := []rune(content)
+    if content_runes[0] == []rune("“")[0]{
         start=1
     }
-    if content[len(content)-1] == 157 {
-        end=len(content)-1
+    if content_runes[len(content_runes)-1] == []rune("”")[0]{
+        end=len(content_runes)-1
     }
-    return string([]rune(content)[start:end])
+    return string(content_runes[start:end])
 }
 
 
