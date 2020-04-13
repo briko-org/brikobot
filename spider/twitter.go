@@ -2,6 +2,7 @@ package spider
 
 import (
 	"golang.org/x/net/html"
+    "strings"
 	"net/http"
 )
 
@@ -36,6 +37,7 @@ func (spidermsg *SpiderMessage) FetchTweetContent(ch chan SpiderResponse) {
 								if p1.Key == "content" {
 									content = p1.Val
                                     content = trimContent(content)
+                                    content = strings.Replace(content, "&amp;", "&", -1)
 									return
 								}
 							}
