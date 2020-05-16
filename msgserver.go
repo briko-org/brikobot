@@ -92,7 +92,7 @@ func loadwhitelist() {
 	}
 }
 
-func publishToChat(from_id int, chat_id int64, text string, lang_list []string, bot *tgbotapi.BotAPI, db *database.Db) bool {
+func publishToChat(from_id int, username string, chat_id int64, text string, lang_list []string, bot *tgbotapi.BotAPI, db *database.Db) bool {
 	allow_publish := false
 	for _, value := range WHITELIST_ID_INT {
 		if from_id == value {
@@ -117,7 +117,7 @@ func publishToChat(from_id int, chat_id int64, text string, lang_list []string, 
 		if err != nil {
 			glog.Errorf("error: %v\n", err)
 		}
-		_, err = db.AddMessage(sentmsg.Chat.ID, sentmsg.MessageID, from_id, text)
+		_, err = db.AddMessage(sentmsg.Chat.ID, sentmsg.MessageID, from_id, username, text)
 		if err != nil {
 			glog.Errorf("error: %v\n", err)
 			return false
@@ -151,10 +151,11 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 			if len(callbackcmd) == 2 { //is callback cmd
 				chat_id := int64(update.CallbackQuery.From.ID)
 				u_id := update.CallbackQuery.From.ID
+				username := update.CallbackQuery.From.UserName
 				cmd := callbackcmd[0]
 				glog.V(2).Infof("User Query %s from id %d", update.CallbackQuery.Data, update.CallbackQuery.From.ID)
 				if cmd == "SETLANG" || cmd == "SUBMIT" || cmd == "CANCEL" || cmd == "EDIT" || cmd == "PUBLISH" {
-					ProcessUpdateCmdMessage(bot, cmd, callbackcmd[1], choutput, db, update.CallbackQuery.Message.MessageID, u_id, chat_id)
+					ProcessUpdateCmdMessage(bot, cmd, callbackcmd[1], choutput, db, update.CallbackQuery.Message.MessageID, u_id, chat_id, username)
 					bot.AnswerCallbackQuery(tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data))
 				}
 			} else {
@@ -163,7 +164,7 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 					lang := callbackdata[0]
 					user_ranking, err := strconv.Atoi(callbackdata[1])
 					if err == nil { // error: ranking value must be a int
-						_, err = db.AddRanking(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID, update.CallbackQuery.From.ID, lang, user_ranking)
+						_, err = db.AddRanking(update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.Message.MessageID, update.CallbackQuery.From.ID, update.CallbackQuery.From.UserName, lang, user_ranking)
 						if err != nil {
 							glog.Errorf("error: %v\n", err)
 						} else {

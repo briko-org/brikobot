@@ -62,3 +62,6 @@ CREATE TABLE session (
 );
 
 
+
+ALTER TABLE ranking ADD COLUMN username varchar(32);
+ALTER TABLE message ADD COLUMN username varchar(32);

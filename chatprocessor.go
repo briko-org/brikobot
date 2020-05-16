@@ -300,7 +300,7 @@ func loadSession(u_id int, chat_id int64, db *database.Db) Session {
 
 }
 
-func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch chan OutputMessage, db *database.Db, message_id int, u_id int, chat_id int64) {
+func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch chan OutputMessage, db *database.Db, message_id int, u_id int, chat_id int64, username string) {
 
 	currentSession := loadSession(u_id, chat_id, db)
 
@@ -379,7 +379,7 @@ func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch 
 			}
 		}
 		lang_content = lang_content + fmt.Sprintf("\n%s", currentSession.Output.SourceURL)
-		publishresult := publishToChat(u_id, CHANNEL_CHAT_ID, lang_content, lang_list, bot, db)
+		publishresult := publishToChat(u_id, username, CHANNEL_CHAT_ID, lang_content, lang_list, bot, db)
 		if publishresult == true {
 			msgtext := "Publish successed. You can input new text to translate."
 			_, err := db.DelSession(chat_id, u_id)
