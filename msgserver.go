@@ -8,8 +8,10 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/viper"
 	"github.com/virushuo/brikobot/database"
+	"github.com/virushuo/brikobot/plugins"
 	"github.com/virushuo/brikobot/spider"
 	"github.com/vmihailenco/msgpack/v4"
+	//gotwitter "github.com/dghubble/go-twitter/twitter"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -17,6 +19,7 @@ import (
 )
 
 var db *database.Db
+var twitterclients map[string]*plugins.Twitterclient
 var (
 	PG_URL            string
 	BOT_TOKEN         string
@@ -28,6 +31,12 @@ var (
 	SUPPORT_LANG_LIST []string
 	HELP_TEXT         string
 	LANG_CORRELATION  map[string]string
+	TWITTER_CONFIG    map[string]map[string]string
+
+	CONSUMER_KEY       string
+	CONSUMER_SECRET    string
+	ACCESSTOKEN_TOKEN  string
+	ACCESSTOKEN_SECRET string
 )
 
 func makeRankingKeyboard(lang_list []string) tgbotapi.InlineKeyboardMarkup {
@@ -67,6 +76,16 @@ func loadconf() {
 	SUPPORT_LANG_LIST = viper.GetStringSlice("SUPPORT_LANG_LIST")
 	HELP_TEXT = viper.GetString("HELP_TEXT")
 	LANG_CORRELATION = viper.GetStringMapString("LANG_CORRELATION")
+	CONSUMER_KEY = viper.GetString("CONSUMER_KEY")
+	CONSUMER_SECRET = viper.GetString("CONSUMER_SECRET")
+	ACCESSTOKEN_TOKEN = viper.GetString("ACCESSTOKEN_TOKEN")
+	ACCESSTOKEN_SECRET = viper.GetString("ACCESSTOKEN_SECRET")
+	file_twitter_config := viper.GetStringMap("TWITTER")
+	TWITTER_CONFIG = make(map[string]map[string]string)
+	for lang, _ := range file_twitter_config {
+		item := viper.GetStringMapString("TWITTER." + lang)
+		TWITTER_CONFIG[lang] = item
+	}
 }
 
 func loadwhitelist() {
@@ -125,8 +144,27 @@ func publishToChat(from_id int, username string, chat_id int64, text string, lan
 			return true
 		}
 	} else {
-
 		glog.V(2).Infof("userid not in the whitelist %v %v", from_id, chat_id)
+		return false
+	}
+}
+
+func publishToTwitter(content_list []string, lang_list []string, sourceUrl string) bool {
+	i := 0
+	if len(content_list) == len(lang_list) {
+		for _, lang := range lang_list {
+			if twitterclients[lang] != nil {
+				fmt.Println("sent tweet: " + lang)
+				_, _, err := twitterclients[lang].Client.Statuses.Update(fmt.Sprintf("%s %s", content_list[i], sourceUrl), nil)
+				if err != nil {
+					glog.Errorf("publish to twitter error: %v\n", err)
+					return false
+				}
+			}
+			i++
+		}
+		return true
+	} else {
 		return false
 	}
 }
@@ -262,12 +300,19 @@ func readSpiderChannel(c chan spider.SpiderResponse, bot *tgbotapi.BotAPI, db *d
 		}
 	}
 }
+func initTwitter() {
+	twitterclients = make(map[string]*plugins.Twitterclient)
+	for lang, item := range TWITTER_CONFIG {
+		twitterclients[lang] = plugins.NewTwitter(item["consumer_key"], item["consumer_secret"], item["accesstoken_token"], item["accesstoken_secret"])
+	}
+}
 
 func main() {
 	flag.Parse()
 
 	loadconf()
 	loadwhitelist()
+	initTwitter()
 
 	db, err := database.New(PG_URL)
 	if err != nil {

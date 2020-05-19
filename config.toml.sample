@@ -2,6 +2,19 @@ PG_URL = "postgres://localapp:PASSWORD@dbserver/brikobot?sslmode=disable"
 BOT_TOKEN = ""
 CHANNEL_CHAT_ID =
 MIN_INPUT_LENGTH = 10
-BRIKO_API = "http://0.0.0.0:6660/translator"
+BRIKO_API = "http://127.0.0.1:6660/translator"
 REQUEST_LANG_LIST= ["en", "zh"]
-HELP_TEXT = "About BRIKO: https://briko.org\nAbout this project: https://github.com/briko-org/briko_for_covid\n\ninput /new to start."
+SUPPORT_LANG_LIST= ["en", "zh", "fr", "jp"]
+HELP_TEXT = "About BRIKO: https://briko.org\nAbout this project: https://github.com/briko-org/document/blob/master/Briko_Telegram_News_Bot_EN.md\nhttps://github.com/briko-org/document/blob/master/Briko_Telegram_News_Bot_ZH.md (中文版)\n\nSend me news content or url to start."
+
+[TWITTER]
+    [TWITTER.zh]
+    ACCESSTOKEN_SECRET = ""
+    ACCESSTOKEN_TOKEN = ""
+    CONSUMER_KEY = ""
+    CONSUMER_SECRET = ""
+
+[LANG_CORRELATION]
+cn = "zh"
+ja = "jp"
+

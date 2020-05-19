@@ -370,8 +370,10 @@ func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch 
 	} else if cmd == "PUBLISH" {
 		lang_content := fmt.Sprintf("[%s]%s", currentSession.Output.Lang, currentSession.Output.Text)
 		lang_list := []string{}
+        content_list :=[]string{}
 		for key, value := range currentSession.Output.Translation {
 			lang_list = append(lang_list, key)
+			content_list = append(content_list, value)
 			if len(lang_content) > 0 {
 				lang_content = lang_content + fmt.Sprintf("\n\n[%s]%s", key, value)
 			} else {
@@ -389,6 +391,7 @@ func ProcessUpdateCmdMessage(bot *tgbotapi.BotAPI, cmd string, query string, ch 
 			}
 			responsemsg := tgbotapi.NewMessage(chat_id, msgtext)
 			bot.Send(responsemsg)
+            publishToTwitter(content_list, lang_list, currentSession.Output.SourceURL)
 		}
 	} else {
 		re_msg := tgbotapi.NewMessage(chat_id, "")
