@@ -1,54 +1,65 @@
 package spider
 
 import (
+	"bytes"
+	"fmt"
 	"golang.org/x/net/html"
-    "strings"
 	"net/http"
+	"net/url"
 )
 
-func trimContent(content string) string{
-    start := 0
-    end := len(content)
-    content_runes := []rune(content)
-    if content_runes[0] == []rune("“")[0]{
-        start=1
-    }
-    if content_runes[len(content_runes)-1] == []rune("”")[0]{
-        end=len(content_runes)-1
-    }
-    return string(content_runes[start:end])
+func collectText(n *html.Node, buf *bytes.Buffer) {
+	if n.Type == html.TextNode {
+		buf.WriteString(n.Data)
+	}
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		collectText(c, buf)
+	}
 }
 
-
+func trimContent(content string) string {
+	start := 0
+	end := len(content)
+	content_runes := []rune(content)
+	if content_runes[0] == []rune("“")[0] {
+		start = 1
+	}
+	if content_runes[len(content_runes)-1] == []rune("”")[0] {
+		end = len(content_runes) - 1
+	}
+	return string(content_runes[start:end])
+}
 
 func (spidermsg *SpiderMessage) FetchTweetContent(ch chan SpiderResponse) {
-	resp, err := http.Get(spidermsg.URL)
+	u, err := url.Parse(spidermsg.URL)
 	content := ""
-	defer resp.Body.Close()
 	if err == nil {
-		doc, err := html.Parse(resp.Body)
+		fetchUrl := fmt.Sprintf("%s://mobile.twitter.com%s", u.Scheme, u.Path)
+		resp, err := http.Get(fetchUrl)
+		defer resp.Body.Close()
 		if err == nil {
-			var f func(*html.Node)
-			f = func(n *html.Node) {
-				if n.Type == html.ElementNode && n.Data == "meta" {
-					for _, p := range n.Attr {
-						if p.Key == "property" && p.Val == "og:description" {
-							for _, p1 := range n.Attr {
-								if p1.Key == "content" {
-									content = p1.Val
-                                    content = trimContent(content)
-                                    content = strings.Replace(content, "&amp;", "&", -1)
-									return
-								}
+			doc, err := html.Parse(resp.Body)
+			if err == nil {
+				var f func(*html.Node)
+				f = func(n *html.Node) {
+					if n.Type == html.ElementNode && n.Data == "div" {
+						for _, p := range n.Attr {
+							if p.Key == "dir" && p.Val == "ltr" {
+								text := &bytes.Buffer{}
+								collectText(n, text)
+								content = trimContent(text.String())
+								return
 							}
 						}
 					}
+					for c := n.FirstChild; c != nil; c = c.NextSibling {
+						if len(content) == 0 {
+							f(c)
+						}
+					}
 				}
-				for c := n.FirstChild; c != nil; c = c.NextSibling {
-					f(c)
-				}
+				f(doc)
 			}
-			f(doc)
 		}
 	}
 	response := &SpiderResponse{

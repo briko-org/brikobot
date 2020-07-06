@@ -236,7 +236,7 @@ func updateSession(input string, session *Session) {
 }
 
 func isTwitterUrl(url string) bool {
-	regex := *regexp.MustCompile(`https://twitter.com/[^/]+/status/\d+.*`)
+	regex := *regexp.MustCompile(`https://.*twitter.com/[^/]+/status/\d+.*`)
 	res := regex.FindIndex([]byte(url))
 	if len(res) >= 2 && res[0] == 0 {
 		return true

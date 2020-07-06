@@ -253,7 +253,6 @@ func startservice(bot *tgbotapi.BotAPI, db *database.Db) {
 func readSpiderChannel(c chan spider.SpiderResponse, bot *tgbotapi.BotAPI, db *database.Db) {
 	for {
 		spidermsg := <-c
-		fmt.Println(spidermsg)
 		if spidermsg.Content != "" {
 			currentSession := loadSession(spidermsg.U_id, spidermsg.Chat_id, db)
 			currentSession.Input.Text = spidermsg.Content
